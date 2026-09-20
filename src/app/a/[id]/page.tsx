@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { use, useEffect, useState } from "react";
+import { Stat, StatStrip } from "@/components/Stat";
 import UnderstandingMap from "@/components/UnderstandingMap";
+import { Button } from "@/components/ui/button";
 import type { MapData } from "@/lib/crdd/types";
 
 interface JobView {
@@ -65,27 +67,30 @@ export default function AnalysisPage({ params }: { params: Promise<{ id: string 
 
   if (missing) {
     return (
-      <main className="wrap">
-        <h1>작업을 찾을 수 없습니다</h1>
-        <p className="lede">
+      <main className="mx-auto max-w-5xl px-5 pt-10 pb-16">
+        <h1 className="text-2xl font-bold tracking-tight">작업을 찾을 수 없습니다</h1>
+        <p className="mt-2.5 max-w-[60ch] text-sm text-muted-foreground">
           분석 작업은 아직 서버 메모리에만 있어서 재시작하면 사라집니다. 다시 시도해 주세요.
         </p>
-        <p style={{ marginTop: 20 }}>
-          <Link className="btn" href="/">
-            처음으로
-          </Link>
-        </p>
+        <Button render={<Link href="/" />} variant="secondary" className="mt-5">
+          처음으로
+        </Button>
       </main>
     );
   }
 
   if (!job || job.status === "queued" || job.status === "running") {
     return (
-      <main className="wrap">
-        <p className="kicker">Analyzing</p>
-        <h1>{job?.repo ?? "레포 분석 중"}</h1>
-        <p className="lede">{STEP_LABEL[job?.step ?? "queued"] ?? job?.step}…</p>
-        <p className="note" style={{ marginTop: 14 }}>
+      <main className="mx-auto max-w-5xl px-5 pt-10 pb-16">
+        <p className="eyebrow mb-2.5">Analyzing</p>
+        <h1 className="text-2xl font-bold tracking-tight">{job?.repo ?? "레포 분석 중"}</h1>
+        <p className="mt-2.5 text-sm text-muted-foreground">
+          {STEP_LABEL[job?.step ?? "queued"] ?? job?.step}…
+        </p>
+        <div className="mt-4 h-1 w-full max-w-md overflow-hidden rounded-full bg-secondary">
+          <i className="block h-full w-1/3 animate-pulse rounded-full bg-primary" />
+        </div>
+        <p className="mt-3.5 font-mono text-[11px] text-dim">
           {Math.round((job?.elapsedMs ?? 0) / 1000)}초 경과 · 소스는 분석이 끝나면 삭제됩니다
         </p>
       </main>
@@ -94,66 +99,51 @@ export default function AnalysisPage({ params }: { params: Promise<{ id: string 
 
   if (job.status === "error") {
     return (
-      <main className="wrap">
-        <p className="kicker">Failed · {STEP_LABEL[job.step] ?? job.step}</p>
-        <h1>분석하지 못했습니다</h1>
-        <p className="lede">{job.error}</p>
-        <p className="note" style={{ marginTop: 12 }}>
+      <main className="mx-auto max-w-5xl px-5 pt-10 pb-16">
+        <p className="eyebrow mb-2.5">Failed · {STEP_LABEL[job.step] ?? job.step}</p>
+        <h1 className="text-2xl font-bold tracking-tight">분석하지 못했습니다</h1>
+        <p className="mt-2.5 max-w-[60ch] text-sm text-muted-foreground">{job.error}</p>
+        <p className="mt-3 font-mono text-[11px] text-dim">
           public 레포인지, 주소가 맞는지 확인해 주세요.
         </p>
-        <p style={{ marginTop: 20 }}>
-          <Link className="btn" href="/">
-            다시 시도
-          </Link>
-        </p>
+        <Button render={<Link href="/" />} variant="secondary" className="mt-5">
+          다시 시도
+        </Button>
       </main>
     );
   }
 
   const map = job.map!;
-  // 퀴즈를 아직 풀지 않았으므로 모든 concept이 콜드 스타트다 (부채비율 100%)
+  // 퀴즈를 아직 풀지 않았으므로 모든 concept이 콜드 스타트다
   const debt: Record<number, number | null> = Object.fromEntries(
     map.concepts.map((concept) => [concept.id, null]),
   );
 
   return (
-    <main className="wrap">
-      <p className="kicker">Analyzed · {map.commit}</p>
-      <h1>{map.repo}</h1>
-      <p className="lede">
+    <main className="mx-auto max-w-6xl px-5 pt-10 pb-16">
+      <p className="eyebrow mb-2.5">Analyzed · {map.commit}</p>
+      <h1 className="text-[clamp(24px,3.4vw,34px)] font-bold tracking-tight">{map.repo}</h1>
+      <p className="mt-2.5 max-w-[64ch] text-sm text-muted-foreground">
         구조 분석이 끝났습니다. 아직 퀴즈를 풀지 않아 모든 개념이 콜드 스타트 상태입니다 —
         부채비율은 퀴즈를 풀면서 채워집니다.
       </p>
 
-      <div className="stats">
-        <div className="stat">
-          <b>100%</b>
-          <span>overall 부채비율</span>
-        </div>
-        <div className="stat">
-          <b>{map.counts.nodes}</b>
-          <span>nodes</span>
-        </div>
-        <div className="stat">
-          <b>{map.counts.edges}</b>
-          <span>edges</span>
-        </div>
-        <div className="stat">
-          <b>{map.concepts.length}</b>
-          <span>concepts</span>
-        </div>
-        <div className="stat">
-          <b>{(job.elapsedMs / 1000).toFixed(1)}s</b>
-          <span>분석 시간</span>
-        </div>
-      </div>
+      <StatStrip>
+        <Stat value="100%" label="overall 부채비율" />
+        <Stat value={map.counts.nodes} label="nodes" />
+        <Stat value={map.counts.edges} label="edges" />
+        <Stat value={map.concepts.length} label="concepts" />
+        <Stat value={`${(job.elapsedMs / 1000).toFixed(1)}s`} label="분석 시간" />
+      </StatStrip>
 
       <UnderstandingMap data={map} debt={debt} />
 
-      <p className="note" style={{ marginTop: 24 }}>
+      <p className="mt-6 font-mono text-[11px] text-dim">
         clone {job.timings?.clone}ms · extract {job.timings?.extract}ms · layout{" "}
         {job.timings?.layout}ms · 파일 {job.fileCount}개 해시 기록 ·{" "}
-        <Link href="/">처음으로</Link>
+        <Link href="/" className="underline underline-offset-2">
+          처음으로
+        </Link>
       </p>
     </main>
   );

@@ -1,15 +1,23 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import type { MapData } from "@/lib/crdd/types";
 
-const COLD = "#57627a";
+const DEBT_COLORS = {
+  ok: "#45b08c",
+  warn: "#d8a33f",
+  crit: "#e05a4e",
+  cold: "#57627a",
+} as const;
 
 function debtColor(debt: number | null): string {
-  if (debt === null) return COLD;
-  if (debt < 30) return "#45b08c";
-  if (debt < 55) return "#d8a33f";
-  return "#e05a4e";
+  if (debt === null) return DEBT_COLORS.cold;
+  if (debt < 30) return DEBT_COLORS.ok;
+  if (debt < 55) return DEBT_COLORS.warn;
+  return DEBT_COLORS.crit;
 }
 
 export interface UnderstandingMapProps {
@@ -22,10 +30,9 @@ export interface UnderstandingMapProps {
 
 export default function UnderstandingMap({ data, debt, debtIsExample }: UnderstandingMapProps) {
   const [view, setView] = useState<"concept" | "file">("concept");
-  const [selected, setSelected] = useState<number>(() =>
+  const [selected, setSelected] = useState(() =>
     data.concepts.reduce(
-      (best, concept, i, all) =>
-        (debt[concept.id] ?? 0) > (debt[all[best]!.id] ?? 0) ? i : best,
+      (best, concept, i, all) => ((debt[concept.id] ?? 0) > (debt[all[best]!.id] ?? 0) ? i : best),
       0,
     ),
   );
@@ -38,32 +45,40 @@ export default function UnderstandingMap({ data, debt, debtIsExample }: Understa
 
   const current = data.concepts[selected];
   const currentDebt = current ? (debt[current.id] ?? null) : null;
-  const debtLabel = debtIsExample ? "부채비율 (예시)" : "부채비율";
 
   return (
     <div>
-      <div className="toolbar">
-        <button
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <Button
           type="button"
+          size="sm"
+          variant={view === "concept" ? "default" : "secondary"}
           aria-pressed={view === "concept"}
           onClick={() => setView("concept")}
         >
           개념 보기 · {data.concepts.length}
-        </button>
-        <button type="button" aria-pressed={view === "file"} onClick={() => setView("file")}>
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant={view === "file" ? "default" : "secondary"}
+          aria-pressed={view === "file"}
+          onClick={() => setView("file")}
+        >
           파일 보기 · {data.counts.nodes}
-        </button>
-        <span className="note" style={{ marginLeft: "auto" }}>
+        </Button>
+        <span className="ml-auto font-mono text-[11px] text-dim">
           노드를 클릭하면 오른쪽에 상세가 나옵니다
         </span>
       </div>
 
-      <div className="stage">
-        <div className="canvas">
+      <div className="grid items-start gap-3.5 lg:grid-cols-[minmax(0,1fr)_280px]">
+        <Card className="overflow-hidden p-0">
           <svg
             viewBox="0 0 1000 660"
             role="img"
             aria-label={`${data.repo}의 코드 구조를 ${data.concepts.length}개 개념으로 묶어 보여주는 지도`}
+            className="block h-auto w-full font-sans"
           >
             {view === "concept" ? (
               <>
@@ -94,7 +109,7 @@ export default function UnderstandingMap({ data, debt, debtIsExample }: Understa
                       role="button"
                       tabIndex={0}
                       aria-label={`${concept.name} — 심볼 ${concept.nodes}개`}
-                      style={{ cursor: "pointer" }}
+                      className="cursor-pointer outline-none"
                       onClick={() => setSelected(i)}
                       onKeyDown={(event) => {
                         if (event.key === "Enter" || event.key === " ") {
@@ -129,7 +144,7 @@ export default function UnderstandingMap({ data, debt, debtIsExample }: Understa
                         textAnchor="middle"
                         fill={color}
                         fontSize={10}
-                        fontFamily="var(--mono)"
+                        className="font-mono"
                         pointerEvents="none"
                       >
                         {value === null ? "미측정" : `${value}%`}
@@ -167,7 +182,7 @@ export default function UnderstandingMap({ data, debt, debtIsExample }: Understa
                       r={2.6}
                       fill={debtColor(value)}
                       fillOpacity={0.85}
-                      style={{ cursor: "pointer" }}
+                      className="cursor-pointer"
                       onClick={() => index !== undefined && setSelected(index)}
                     >
                       <title>{`${node.l} — ${node.f ?? ""}`}</title>
@@ -177,23 +192,34 @@ export default function UnderstandingMap({ data, debt, debtIsExample }: Understa
               </>
             )}
           </svg>
-        </div>
+        </Card>
 
-        <aside className="panel">
+        <Card className="min-w-0 gap-0 p-3.5">
           {current ? (
             <>
-              <h2>{current.name}</h2>
-              <p className="sub">
+              <h2 className="text-base font-semibold tracking-tight">{current.name}</h2>
+              <p className="mb-3 font-mono text-[11px] text-dim">
                 community {current.id} · 심볼 {current.nodes}개 · 파일 {current.files.length}개
               </p>
-              <div className="debt">
-                <b style={{ color: debtColor(currentDebt) }}>
+
+              <div className="flex items-baseline gap-2">
+                <b
+                  className="font-mono text-3xl font-semibold tracking-tight tabular"
+                  style={{ color: debtColor(currentDebt) }}
+                >
                   {currentDebt === null ? "—" : `${currentDebt}%`}
                 </b>
-                <span>{currentDebt === null ? "콜드 스타트 · 퀴즈 미실시" : debtLabel}</span>
+                <span className="eyebrow">
+                  {currentDebt === null
+                    ? "콜드 스타트"
+                    : debtIsExample
+                      ? "부채비율 (예시)"
+                      : "부채비율"}
+                </span>
               </div>
-              <div className="bar">
+              <div className="mt-1.5 mb-3.5 h-1 overflow-hidden rounded-full bg-secondary">
                 <i
+                  className="block h-full rounded-full"
                   style={{
                     width: `${currentDebt ?? 100}%`,
                     background: debtColor(currentDebt),
@@ -201,46 +227,50 @@ export default function UnderstandingMap({ data, debt, debtIsExample }: Understa
                 />
               </div>
 
-              <div className="plabel">대표 심볼 (fan-in 순)</div>
-              <ul className="slist">
+              <div className="eyebrow mb-1.5 text-[9.5px]">대표 심볼 (fan-in 순)</div>
+              <ul className="flex flex-col gap-1">
                 {current.top.map((symbol) => (
-                  <li key={`${symbol.file}-${symbol.label}`}>
-                    <b>{symbol.label}</b>
-                    <span>fan-in {symbol.fan}</span>
+                  <li
+                    key={`${symbol.file}-${symbol.label}`}
+                    className="flex justify-between gap-2 font-mono text-[11px] text-muted-foreground"
+                  >
+                    <b className="font-medium text-foreground">{symbol.label}</b>
+                    <span className="shrink-0 text-dim">fan-in {symbol.fan}</span>
                   </li>
                 ))}
               </ul>
 
-              <div className="plabel">파일 {current.files.length}개</div>
-              <ul className="flist">
+              <div className="eyebrow mt-3.5 mb-1.5 text-[9.5px]">
+                파일 {current.files.length}개
+              </div>
+              <ul className="flex flex-col gap-1">
                 {current.files.map((file) => (
-                  <li key={file}>{file}</li>
+                  <li key={file} className="font-mono text-[11px] break-all text-muted-foreground">
+                    {file}
+                  </li>
                 ))}
               </ul>
             </>
           ) : (
-            <p className="note">개념을 선택하세요</p>
+            <p className="font-mono text-[11px] text-dim">개념을 선택하세요</p>
           )}
-        </aside>
+        </Card>
       </div>
 
-      <div className="legend">
-        <span>
-          <i style={{ background: "#45b08c" }} />
-          부채 낮음
-        </span>
-        <span>
-          <i style={{ background: "#d8a33f" }} />
-          주의
-        </span>
-        <span>
-          <i style={{ background: "#e05a4e" }} />
-          높음
-        </span>
-        <span>
-          <i style={{ background: COLD }} />
-          콜드 스타트
-        </span>
+      <div className="mt-3.5 flex flex-wrap items-center gap-3 border-t border-border pt-3 font-mono text-[11px] text-dim">
+        {(
+          [
+            ["부채 낮음", DEBT_COLORS.ok],
+            ["주의", DEBT_COLORS.warn],
+            ["높음", DEBT_COLORS.crit],
+            ["콜드 스타트", DEBT_COLORS.cold],
+          ] as const
+        ).map(([label, color]) => (
+          <Badge key={label} variant="outline" className="gap-1.5 font-mono text-[10px]">
+            <span className="size-2 rounded-full" style={{ background: color }} />
+            {label}
+          </Badge>
+        ))}
         <span>원 크기 = 포함 심볼 수 · 선 굵기 = 개념 간 연결 수</span>
       </div>
     </div>

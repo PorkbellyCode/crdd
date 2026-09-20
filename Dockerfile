@@ -1,21 +1,25 @@
 # Node와 Python을 한 이미지에 담는다.
 #
-# Graphify는 Python CLI라 Next.js 서버리스 함수 안에서 돌릴 수 없다. 서비스를
-# 둘로 쪼개는 대신, 앱과 분석기를 같은 컨테이너에 넣고 Next가 graphify를
-# 자식 프로세스로 실행한다. 그래서 Vercel이 아니라 Fly.io/Railway 같은
-# 컨테이너 호스팅에 올린다.
+# Graphify는 Python CLI다. 라이브러리로 import하는 게 아니라 명령어 하나를
+# 자식 프로세스로 실행할 뿐이라, 서비스를 둘로 쪼개지 않고 앱과 분석기를 같은
+# 컨테이너에 넣는다. 그래서 배포 대상은 Vercel이 아니라 Fly.io·Railway 같은
+# 컨테이너 호스팅이다.
+#
+# 설치와 빌드는 bun, 런타임은 node.
+# bun이 빠르고(콜드 캐시 2.2s vs npm 9.8s), 런타임을 node로 두는 건 Next
+# standalone 서버와 자식 프로세스 실행이 가장 검증된 조합이기 때문이다.
 
-FROM node:22-slim AS deps
+FROM oven/bun:1 AS deps
 WORKDIR /app
-COPY package.json pnpm-lock.yaml* package-lock.json* ./
-RUN corepack enable && pnpm install --frozen-lockfile || npm install
+COPY package.json bun.lock ./
+RUN bun install --frozen-lockfile
 
-FROM node:22-slim AS builder
+FROM oven/bun:1 AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
-RUN corepack enable && (pnpm build || npm run build)
+RUN bun run build
 
 FROM node:22-slim AS runner
 WORKDIR /app
@@ -29,7 +33,6 @@ RUN apt-get update \
 
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
-COPY --from=builder /app/public ./public
 
 EXPOSE 3000
 CMD ["node", "server.js"]

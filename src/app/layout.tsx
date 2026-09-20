@@ -1,5 +1,19 @@
 import type { Metadata } from "next";
+import { IBM_Plex_Mono, IBM_Plex_Sans_KR } from "next/font/google";
 import "./globals.css";
+import { cn } from "@/lib/utils";
+
+const plexSans = IBM_Plex_Sans_KR({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-plex-sans",
+});
+
+const plexMono = IBM_Plex_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  variable: "--font-plex-mono",
+});
 
 export const metadata: Metadata = {
   title: "CRDD — Understand the code you build with AI",
@@ -9,14 +23,9 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="ko">
-      <head>
-        <link
-          rel="stylesheet"
-          href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap"
-        />
-      </head>
-      <body>{children}</body>
+    // 다크 단일 테마 — 토큰 값 자체가 다크라 .dark는 shadcn 변형을 위해 붙인다
+    <html lang="ko" className={cn("dark", plexSans.variable, plexMono.variable)}>
+      <body className="font-sans leading-relaxed">{children}</body>
     </html>
   );
 }

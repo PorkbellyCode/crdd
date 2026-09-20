@@ -14,13 +14,18 @@ Graphify는 Python CLI다. 라이브러리로 import하는 게 아니라 **명�
 
 ## 로컬 실행
 
-필요한 것: Node 22+, `git`, 그리고 PATH에 `graphify`.
+필요한 것: [bun](https://bun.com), `git`, 그리고 PATH에 `graphify`.
 
 ```bash
-uv tool install graphifyy   # 없으면
-pnpm install
-pnpm dev                    # http://localhost:3000
+brew install oven-sh/bun/bun   # 없으면
+uv tool install graphifyy      # 없으면
+bun install
+bun dev                        # http://localhost:3000
 ```
+
+패키지 매니저는 bun, 런타임은 node다. 이 프로젝트에서 잰 설치 시간은 콜드 캐시
+2.2초(npm은 캐시가 있어도 9.8초), 캐시가 있으면 0.2초. 런타임을 node로 두는 건
+Next standalone 서버와 자식 프로세스(git·graphify) 실행이 가장 검증된 조합이라서다.
 
 - `/` — 레포 주소를 넣으면 분석이 시작된다
 - `/a/[id]` — 진행 상태 → 완료 시 Understanding Map (퀴즈 전이라 전부 콜드 스타트)
@@ -57,6 +62,14 @@ docker run -p 3000:3000 crdd-web
 | `src/lib/crdd/map.ts` | 개념/파일 두 수준의 MapData 생성 |
 | `src/lib/crdd/ignore.ts` | 분석 전 제외할 매니페스트·설정 파일 |
 | `src/components/UnderstandingMap.tsx` | 개념/파일 보기 전환, 부채비율 오버레이 |
+| `src/components/ui/*` | shadcn/ui 컴포넌트 (base-nova 프리셋) |
+| `src/app/globals.css` | Tailwind v4 + shadcn 토큰을 CRDD 다크 팔레트로 덮은 곳 |
+
+## 스타일
+
+Tailwind CSS v4 + shadcn/ui. 다크 단일 테마다 — shadcn 토큰 값 자체를 CRDD 팔레트로
+덮고, 부채비율 표시용 의미 색(`--debt-ok/warn/crit/cold`)을 따로 둔다. 이 네 색은
+브랜드 강조색(`--primary`)과 분리해서 쓴다. 상태 색과 강조 색을 섞으면 신호가 죽는다.
 
 ## 설계 원칙 (프로젝트 문서에서 확정)
 

@@ -2,6 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 export default function AnalyzeForm() {
   const router = useRouter();
@@ -33,28 +35,24 @@ export default function AnalyzeForm() {
   }
 
   return (
-    <form onSubmit={submit} style={{ maxWidth: 620, marginTop: 24 }}>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <input
+    <form onSubmit={submit} className="mt-6 max-w-2xl">
+      <div className="flex flex-wrap gap-2">
+        <Input
           id="repo"
           name="repo"
-          className="field"
           value={repo}
           onChange={(event) => setRepo(event.target.value)}
           placeholder="github.com/owner/repo"
           aria-label="분석할 public GitHub 레포 주소"
           disabled={pending}
+          className="min-w-0 flex-1 basis-64 font-mono"
         />
-        <button className="btn primary" type="submit" disabled={pending || repo.trim() === ""}>
+        <Button type="submit" disabled={pending || repo.trim() === ""}>
           {pending ? "시작하는 중…" : "분석 시작"}
-        </button>
+        </Button>
       </div>
-      {error ? (
-        <p className="note" style={{ color: "var(--crit)", marginTop: 8 }}>
-          {error}
-        </p>
-      ) : null}
-      <p className="note" style={{ marginTop: 10 }}>
+      {error ? <p className="mt-2 font-mono text-[11px] text-destructive">{error}</p> : null}
+      <p className="mt-2.5 font-mono text-[11px] text-dim">
         public 레포만 지원합니다 · 소스는 분석 직후 삭제하고 그래프와 파일 해시만 보관합니다
       </p>
     </form>
