@@ -1,66 +1,40 @@
 /**
- * 분석 작업 큐 — MVP는 인메모리.
+ * 분석 작업 실행기.
  *
- * 분석이 2~수십 초 걸리므로 HTTP 요청 안에서 끝내지 않고 작업으로 띄운 뒤
- * 상태를 폴링한다. 프로세스가 죽으면 작업도 사라지는데, P3에서 Postgres
- * 테이블로 옮기면서 해결한다 (별도 큐 제품은 쓰지 않는다).
+ * 작업 상태와 결과는 DB(jobs/analyses)에 쓴다. 프로세스가 재시작해도 끝난
+ * 분석은 남고, 인스턴스가 여러 개여도 같은 상태를 본다. 실행 자체는 아직
+ * 이 프로세스 안에서 일어나므로, 실행 중이던 작업은 재시작 시 running으로
+ * 남는다 — 별도 워커로 분리할 때 정리한다.
  */
-import { analyzeRepo, AnalysisError, parseRepo, type AnalysisResult } from "./analyze";
+import { createJobRow, saveAnalysis, updateJob } from "@/db/repo";
+import { analyzeRepo, AnalysisError, parseRepo } from "./analyze";
 
-export type JobStatus = "queued" | "running" | "done" | "error";
-
-export interface Job {
-  id: string;
-  repo: string;
-  status: JobStatus;
-  step: string;
-  error?: string;
-  result?: AnalysisResult;
-  createdAt: number;
-  finishedAt?: number;
-}
-
-type JobStore = Map<string, Job>;
-
-// 개발 중 HMR로 모듈이 다시 로드돼도 작업이 날아가지 않게 globalThis에 둔다
-const globalStore = globalThis as unknown as { __crddJobs?: JobStore };
-const jobs: JobStore = globalStore.__crddJobs ?? new Map();
-globalStore.__crddJobs = jobs;
-
-const MAX_JOBS = 50;
-
-export function createJob(repoInput: string): Job {
+export async function startJob(repoInput: string): Promise<{ id: string; repo: string }> {
   const { owner, repo } = parseRepo(repoInput);
   const slug = `${owner}/${repo}`;
-  const id = crypto.randomUUID();
-  const job: Job = { id, repo: slug, status: "queued", step: "queued", createdAt: Date.now() };
-  jobs.set(id, job);
-
-  // 오래된 작업 정리 (인메모리라 무한히 쌓이면 안 된다)
-  if (jobs.size > MAX_JOBS) {
-    const oldest = [...jobs.values()].sort((a, b) => a.createdAt - b.createdAt)[0];
-    if (oldest) jobs.delete(oldest.id);
-  }
+  const id = await createJobRow(slug);
 
   void (async () => {
-    job.status = "running";
-    job.step = "clone";
     try {
-      job.result = await analyzeRepo(slug);
-      job.status = "done";
-      job.step = "done";
+      await updateJob(id, { status: "running", step: "clone" });
+      const result = await analyzeRepo(slug);
+      const { projectId, analysisId } = await saveAnalysis(result);
+      await updateJob(id, {
+        status: "done",
+        step: "done",
+        projectId,
+        analysisId,
+        finishedAt: Math.floor(Date.now() / 1000),
+      });
     } catch (error) {
-      job.status = "error";
-      job.step = error instanceof AnalysisError ? error.step : "unknown";
-      job.error = error instanceof Error ? error.message : String(error);
-    } finally {
-      job.finishedAt = Date.now();
+      await updateJob(id, {
+        status: "error",
+        step: error instanceof AnalysisError ? error.step : "unknown",
+        error: error instanceof Error ? error.message : String(error),
+        finishedAt: Math.floor(Date.now() / 1000),
+      });
     }
   })();
 
-  return job;
-}
-
-export function getJob(id: string): Job | undefined {
-  return jobs.get(id);
+  return { id, repo: slug };
 }

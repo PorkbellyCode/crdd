@@ -17,6 +17,7 @@ interface JobView {
   map?: MapData;
   timings?: { clone: number; extract: number; layout: number };
   fileCount?: number;
+  debt?: Record<number, number | null>;
 }
 
 const STEP_LABEL: Record<string, string> = {
@@ -114,10 +115,14 @@ export default function AnalysisPage({ params }: { params: Promise<{ id: string 
   }
 
   const map = job.map!;
-  // 퀴즈를 아직 풀지 않았으므로 모든 concept이 콜드 스타트다
+  // 퀴즈를 본 적 없는 concept은 콜드 스타트로 그린다
   const debt: Record<number, number | null> = Object.fromEntries(
-    map.concepts.map((concept) => [concept.id, null]),
+    map.concepts.map((concept) => [concept.id, job.debt?.[concept.id] ?? null]),
   );
+  const measured = map.concepts.filter((c) => debt[c.id] !== null);
+  const overall = measured.length
+    ? Math.round(measured.reduce((sum, c) => sum + (debt[c.id] ?? 0), 0) / measured.length)
+    : 100;
 
   return (
     <main className="mx-auto max-w-6xl px-5 pt-10 pb-16">
@@ -129,7 +134,7 @@ export default function AnalysisPage({ params }: { params: Promise<{ id: string 
       </p>
 
       <StatStrip>
-        <Stat value="100%" label="overall 부채비율" />
+        <Stat value={`${overall}%`} label="overall 부채비율" />
         <Stat value={map.counts.nodes} label="nodes" />
         <Stat value={map.counts.edges} label="edges" />
         <Stat value={map.concepts.length} label="concepts" />

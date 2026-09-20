@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { AnalysisError } from "@/lib/analysis/analyze";
-import { createJob } from "@/lib/analysis/jobs";
+import { startJob } from "@/lib/analysis/jobs";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -18,8 +18,8 @@ export async function POST(request: Request) {
   }
 
   try {
-    const job = createJob(repo);
-    return NextResponse.json({ id: job.id, repo: job.repo }, { status: 202 });
+    const job = await startJob(repo);
+    return NextResponse.json(job, { status: 202 });
   } catch (error) {
     const message = error instanceof AnalysisError ? error.message : "분석을 시작할 수 없습니다";
     return NextResponse.json({ error: message }, { status: 400 });
