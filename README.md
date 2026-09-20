@@ -96,6 +96,26 @@ bun db:studio                # 데이터 확인
 아니면 유지). 큰 JSON은 지금 text 컬럼에 둔다 — porklog 기준 map 72KB, 해시 12KB.
 수 MB가 되면 오브젝트 스토리지로 빼고 참조만 남기는 게 맞다.
 
+## 배포 · CI/CD
+
+Fly.io(도쿄 `nrt` — Fly에 서울 리전은 없다)에 단일 컨테이너로 올린다.
+
+```
+PR·main 푸시 → CI: bun install → typecheck → build
+main CI 통과  → Deploy: flyctl deploy --remote-only → 헬스체크
+```
+
+처음 한 번은 손으로 준비해야 한다.
+
+```bash
+fly launch --no-deploy            # fly.toml이 이미 있으면 앱만 생성
+fly secrets set TURSO_DATABASE_URL=... TURSO_AUTH_TOKEN=...
+fly tokens create deploy -x 999999h   # 출력을 GitHub 시크릿 FLY_API_TOKEN에 등록
+```
+
+유휴 시 머신이 suspend로 잠든다. 데모 사이트라 비용을 아끼는 쪽을 택했고,
+재개가 빨라 첫 요청 지연이 크지 않다.
+
 ## 설계 원칙 (프로젝트 문서에서 확정)
 
 - 입력은 **public GitHub 레포 링크만**. 업로드 없음

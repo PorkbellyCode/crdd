@@ -1,0 +1,40 @@
+name: Deploy
+
+# CI(타입체크·빌드)가 통과한 뒤에만 배포한다.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Fly 배포
+    runs-on: ubuntu-latest
+    if: github.event.workflow_run.conclusion == 'success'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: 배포
+        run: flyctl deploy --remote-only
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      - name: 헬스체크
+        run: |
+          for i in $(seq 1 10); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" https://crdd.fly.dev/ || true)
+            echo "attempt $i → $code"
+            if [ "$code" = "200" ]; then exit 0; fi
+            sleep 6
+          done
+          echo "배포는 끝났지만 사이트가 200을 돌려주지 않습니다"
+          exit 1

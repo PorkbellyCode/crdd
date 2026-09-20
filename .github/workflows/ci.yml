@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: 타입체크 · 빌드
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: 의존성 설치
+        run: bun install --frozen-lockfile
+
+      - name: 타입체크
+        run: bun run typecheck
+
+      - name: 빌드
+        run: bun run build
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
+          # 빌드 시점에는 DB에 붙지 않는다. 값이 없으면 로컬 파일로 떨어진다.
+          TURSO_DATABASE_URL: ""
