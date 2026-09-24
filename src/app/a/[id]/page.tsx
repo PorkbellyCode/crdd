@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { use, useEffect, useState } from "react";
 import { Stat, StatStrip } from "@/components/Stat";
+import StartQuizButton from "@/components/StartQuizButton";
 import UnderstandingMap from "@/components/UnderstandingMap";
 import { Button } from "@/components/ui/button";
 import type { MapData } from "@/lib/crdd/types";
@@ -14,6 +15,7 @@ interface JobView {
   step: string;
   error?: string;
   elapsedMs: number;
+  analysisId?: string;
   map?: MapData;
   timings?: { clone: number; extract: number; layout: number };
   fileCount?: number;
@@ -141,7 +143,19 @@ export default function AnalysisPage({ params }: { params: Promise<{ id: string 
         <Stat value={`${(job.elapsedMs / 1000).toFixed(1)}s`} label="분석 시간" />
       </StatStrip>
 
-      <UnderstandingMap data={map} debt={debt} />
+      <UnderstandingMap
+        data={map}
+        debt={debt}
+        renderAction={(concept) =>
+          job.analysisId ? (
+            <StartQuizButton
+              analysisId={job.analysisId}
+              communityId={concept.id}
+              returnTo={`/a/${id}`}
+            />
+          ) : null
+        }
+      />
 
       <p className="mt-6 font-mono text-[11px] text-dim">
         clone {job.timings?.clone}ms · extract {job.timings?.extract}ms · layout{" "}

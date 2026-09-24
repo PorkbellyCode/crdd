@@ -15,6 +15,13 @@
       "when": 1790223305481,
       "tag": "0001_concept_keys",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1790223784452,
+      "tag": "0002_quizzes",
+      "breakpoints": true
     }
   ]
 }

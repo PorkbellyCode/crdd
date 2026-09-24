@@ -26,9 +26,11 @@ export interface UnderstandingMapProps {
   debt: Record<number, number | null>;
   /** 부채비율이 실측이 아닌 예시 값일 때 화면에 밝힌다 */
   debtIsExample?: boolean;
+  /** 선택한 개념의 상세 패널에 붙일 동작 (퀴즈 시작 등). 데모에서는 비운다 */
+  renderAction?: (concept: MapData["concepts"][number]) => React.ReactNode;
 }
 
-export default function UnderstandingMap({ data, debt, debtIsExample }: UnderstandingMapProps) {
+export default function UnderstandingMap({ data, debt, debtIsExample, renderAction }: UnderstandingMapProps) {
   const [view, setView] = useState<"concept" | "file">("concept");
   const [selected, setSelected] = useState(() =>
     data.concepts.reduce(
@@ -226,6 +228,8 @@ export default function UnderstandingMap({ data, debt, debtIsExample }: Understa
                   }}
                 />
               </div>
+
+              {renderAction ? <div className="mb-3.5">{renderAction(current)}</div> : null}
 
               <div className="eyebrow mb-1.5 text-[9.5px]">대표 심볼 (fan-in 순)</div>
               <ul className="flex flex-col gap-1">

@@ -164,3 +164,35 @@ export const jobs = sqliteTable(
   },
   (table) => [index("jobs_status_idx").on(table.status)],
 );
+
+/**
+ * 퀴즈 세션 하나 = concept 하나에 대한 문항 묶음.
+ *
+ * rubric·힌트·설명이 들어 있는 questionsJson은 서버 밖으로 그대로 내보내지 않는다.
+ * 화면에는 src/lib/quiz/view.ts가 단계에 맞게 걸러낸 형태만 간다.
+ */
+export const quizzes = sqliteTable(
+  "quizzes",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").notNull(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    analysisId: text("analysis_id").notNull(),
+    conceptKey: text("concept_key").notNull(),
+    conceptName: text("concept_name").notNull(),
+    commit: text("commit").notNull(),
+    /** 출제에 쓴 모델 — 사용자가 고른 것. 키는 저장하지 않는다 */
+    model: text("model").notNull(),
+    /** active | done */
+    status: text("status").notNull().default("active"),
+    questionsJson: text("questions_json").notNull(),
+    progressJson: text("progress_json").notNull(),
+    /** 완료 시 결과 요약 (부채비율 전후) */
+    resultJson: text("result_json"),
+    createdAt: integer("created_at").notNull().default(now),
+    finishedAt: integer("finished_at"),
+  },
+  (table) => [index("quizzes_user_project_idx").on(table.userId, table.projectId)],
+);
