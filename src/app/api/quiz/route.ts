@@ -7,6 +7,7 @@ import { errorResponse, QuizError } from "@/lib/quiz/errors";
 import { initialProgress } from "@/lib/quiz/flow";
 import { generateQuestions } from "@/lib/quiz/prompts";
 import { toQuizView } from "@/lib/quiz/view";
+import { ensureUserId } from "@/lib/user";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -64,7 +65,7 @@ export async function POST(request: Request) {
       throw new QuizError("쓸 만한 문항을 만들지 못했습니다. 다시 시도해 주세요.", 502);
     }
 
-    const userId = "local";
+    const userId = await ensureUserId();
     const progress = initialProgress(questions.length);
     const id = await createQuiz({
       userId,

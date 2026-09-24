@@ -97,7 +97,8 @@ export const concepts = sqliteTable(
  * 사용자 × concept의 이해도.
  *
  * score는 내부 계산용이고 화면에는 부채비율(100 - score)만 노출한다.
- * userId는 로그인이 붙기 전(P3)까지 익명 기기 ID(쿠키 crdd_uid)다.
+ * userId는 로그인이 붙기 전(P3)까지 익명 기기 ID(쿠키 crdd_uid, src/lib/user.ts)다.
+ * 기본값 "local"은 초기 스키마의 흔적이고 실제로는 항상 채워서 넣는다.
  */
 export const scores = sqliteTable(
   "scores",

@@ -6,6 +6,7 @@ import { errorResponse, QuizError } from "@/lib/quiz/errors";
 import { applyVerdict, currentIndex, isFinished } from "@/lib/quiz/flow";
 import { giveUpVerdict, gradeAnswer } from "@/lib/quiz/prompts";
 import { toQuizView } from "@/lib/quiz/view";
+import { getUserId } from "@/lib/user";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -28,7 +29,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     } | null;
 
     const quiz = await getQuiz(id);
-    const userId = "local";
+    const userId = await getUserId();
     if (!quiz || quiz.userId !== userId) throw new QuizError("퀴즈를 찾을 수 없습니다", 404);
     if (quiz.status !== "active") throw new QuizError("이미 끝난 퀴즈입니다", 409);
 

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAnalysis, getDebtForAnalysis, getJobRow } from "@/db/repo";
+import { getUserId } from "@/lib/user";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,7 +15,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 
   const analysis = job.analysisId ? await getAnalysis(job.analysisId) : null;
   // 점수는 concept 영속 키에 붙어 있고, 이 분석의 communityId로 옮겨서 돌려준다
-  const debt = job.analysisId ? await getDebtForAnalysis(job.analysisId, "local") : {};
+  const debt = job.analysisId ? await getDebtForAnalysis(job.analysisId, await getUserId()) : {};
 
   return NextResponse.json({
     id: job.id,
