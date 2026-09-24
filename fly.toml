@@ -12,6 +12,9 @@ primary_region = 'nrt'
 [env]
   NEXT_TELEMETRY_DISABLED = '1'
   NODE_ENV = 'production'
+  # 로그인 콜백 주소의 기준. standalone 서버는 요청 주소를 0.0.0.0 등으로 보기 때문에
+  # 명시하지 않으면 GitHub에 등록한 Redirect URI와 어긋난다
+  AUTH_URL = 'https://crdd.fly.dev'
 
 [http_service]
   internal_port = 3000

@@ -17,6 +17,26 @@ import { index, integer, real, sqliteTable, text, uniqueIndex } from "drizzle-or
 
 const now = sql`(unixepoch())`;
 
+/**
+ * 계정 (로그인, P3). id = `<provider>:<계정 번호>` — 아이디(login)를 바꿔도 유지된다.
+ * 점수·이력·퀴즈의 userId에 이 id가 들어간다. 로그인 전에는 익명 기기 ID(UUID)가 들어간다.
+ * OAuth 토큰은 저장하지 않는다.
+ */
+export const users = sqliteTable(
+  "users",
+  {
+    id: text("id").primaryKey(),
+    provider: text("provider").notNull(),
+    providerAccountId: text("provider_account_id").notNull(),
+    login: text("login"),
+    name: text("name"),
+    image: text("image"),
+    createdAt: integer("created_at").notNull().default(now),
+    lastLoginAt: integer("last_login_at"),
+  },
+  (table) => [uniqueIndex("users_provider_account_idx").on(table.provider, table.providerAccountId)],
+);
+
 /** 프로젝트 = 레포 하나. 식별 키는 첫 커밋 SHA (경로·이름이 바뀌어도 유지된다) */
 export const projects = sqliteTable(
   "projects",
