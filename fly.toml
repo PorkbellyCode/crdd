@@ -1,38 +1,31 @@
-# Fly.io 배포 설정.
+# fly.toml app configuration file generated for crdd on 2026-09-20T15:47:08+09:00
 #
-# Node와 Python(graphify)이 같이 들어간 Dockerfile 하나를 그대로 올린다.
-# 리전은 nrt(도쿄) — Fly에 서울 리전은 없고 한국에서 가장 가깝다.
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
 
-app = "crdd"
-primary_region = "nrt"
+app = 'crdd'
+primary_region = 'nrt'
 
 [build]
-  dockerfile = "Dockerfile"
+  dockerfile = 'Dockerfile'
+
+[env]
+  NEXT_TELEMETRY_DISABLED = '1'
+  NODE_ENV = 'production'
 
 [http_service]
   internal_port = 3000
   force_https = true
-  auto_stop_machines = "suspend"
+  auto_stop_machines = 'suspend'
   auto_start_machines = true
-  # 데모 사이트라 유휴 시 잠들게 둔다. suspend는 재개가 빨라 첫 요청 지연이 작다.
   min_machines_running = 0
-  processes = ["app"]
+  processes = ['app']
 
   [http_service.concurrency]
-    type = "requests"
-    # 분석 중에는 한 요청이 CPU를 오래 쓴다. 동시 처리량을 낮게 잡아
-    # 분석 요청이 몰릴 때 기존 요청이 굶지 않게 한다.
-    soft_limit = 8
+    type = 'requests'
     hard_limit = 16
+    soft_limit = 8
 
 [[vm]]
-  size = "shared-cpu-1x"
-  # graphify가 AST를 파싱하는 동안 메모리를 쓴다. 큰 레포를 감안해 1GB.
-  memory = "1gb"
-
-[env]
-  NODE_ENV = "production"
-  NEXT_TELEMETRY_DISABLED = "1"
-
-# 시크릿은 레포가 아니라 Fly에 둔다:
-#   fly secrets set TURSO_DATABASE_URL=... TURSO_AUTH_TOKEN=...
+  size = 'shared-cpu-1x'
+  memory = '1gb'
