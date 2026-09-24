@@ -11,7 +11,7 @@ concurrency:
 
 jobs:
   check:
-    name: 타입체크 · 빌드
+    name: 타입체크 · 테스트 · 빌드
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -25,6 +25,9 @@ jobs:
 
       - name: 타입체크
         run: bun run typecheck
+
+      - name: 테스트
+        run: bun test
 
       - name: 빌드
         run: bun run build

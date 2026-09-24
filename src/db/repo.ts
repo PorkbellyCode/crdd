@@ -5,7 +5,10 @@ import { and, desc, eq } from "drizzle-orm";
 import { db } from "./index";
 import { analyses, concepts, jobs, projects, scores } from "./schema";
 import type { AnalysisResult } from "@/lib/analysis/analyze";
+import { assignConceptKeys } from "@/lib/crdd/identity";
 import type { MapData } from "@/lib/crdd/types";
+
+const nowSec = () => Math.floor(Date.now() / 1000);
 
 export async function ensureProject(repo: string, rootCommit?: string): Promise<string> {
   const existing = await db.select().from(projects).where(eq(projects.repo, repo)).limit(1);
@@ -23,52 +26,49 @@ export async function saveAnalysis(result: AnalysisResult): Promise<{
   analysisId: string;
 }> {
   const projectId = await ensureProject(result.repo);
+
+  // concept 영속 키 배정 — 직전 concept들과 파일 집합 유사도로 짝을 짓는다.
+  // communityId는 재분석마다 다시 매겨지므로 그대로 쓰면 점수가 엉뚱한 곳에 붙는다.
+  const previous = await db.select().from(concepts).where(eq(concepts.projectId, projectId));
+  const keyByCommunity = assignConceptKeys(
+    previous.map((row) => ({ key: row.key, files: JSON.parse(row.filesJson) as string[] })),
+    result.concepts.map((concept) => ({ communityId: concept.communityId, files: concept.files })),
+  );
+  const conceptKeysJson = JSON.stringify(Object.fromEntries(keyByCommunity));
+
   const analysisId = crypto.randomUUID();
-
-  await db
+  const analysisValues = {
+    mapJson: JSON.stringify(result.map),
+    fileHashesJson: JSON.stringify(result.fileHashes),
+    conceptKeysJson,
+    nodeCount: result.map.counts.nodes,
+    edgeCount: result.map.counts.edges,
+    conceptCount: result.map.counts.concepts,
+    timingsJson: JSON.stringify(result.timings),
+  };
+  const [saved] = await db
     .insert(analyses)
-    .values({
-      id: analysisId,
-      projectId,
-      commit: result.commit,
-      mapJson: JSON.stringify(result.map),
-      fileHashesJson: JSON.stringify(result.fileHashes),
-      nodeCount: result.map.counts.nodes,
-      edgeCount: result.map.counts.edges,
-      conceptCount: result.map.counts.concepts,
-      timingsJson: JSON.stringify(result.timings),
-    })
-    .onConflictDoUpdate({
-      target: [analyses.projectId, analyses.commit],
-      set: {
-        mapJson: JSON.stringify(result.map),
-        fileHashesJson: JSON.stringify(result.fileHashes),
-        nodeCount: result.map.counts.nodes,
-        edgeCount: result.map.counts.edges,
-        conceptCount: result.map.counts.concepts,
-        timingsJson: JSON.stringify(result.timings),
-      },
-    });
+    .values({ id: analysisId, projectId, commit: result.commit, ...analysisValues })
+    .onConflictDoUpdate({ target: [analyses.projectId, analyses.commit], set: analysisValues })
+    .returning({ id: analyses.id });
 
-  // concept은 커뮤니티 ID 기준으로 갱신한다. 이름이 2차(LLM)나 수동으로 바뀐
-  // 경우에는 덮어쓰지 않는다 — 사용자가 고친 이름이 재분석으로 사라지면 안 된다.
+  // 이번 분석에 없는 concept은 비활성으로 — 점수 이력 때문에 지우지는 않는다
+  await db.update(concepts).set({ active: false }).where(eq(concepts.projectId, projectId));
+
   for (const concept of result.concepts) {
-    const existing = await db
-      .select()
-      .from(concepts)
-      .where(
-        and(eq(concepts.projectId, projectId), eq(concepts.communityId, concept.communityId)),
-      )
-      .limit(1);
-
-    const keepName = existing[0] && existing[0].nameSource !== "auto";
+    const key = keyByCommunity.get(concept.communityId)!;
+    const existing = previous.find((row) => row.key === key);
+    // 이름이 2차(LLM)나 수동으로 바뀐 경우에는 덮어쓰지 않는다
+    const keepName = existing && existing.nameSource !== "auto";
 
     await db
       .insert(concepts)
       .values({
         id: crypto.randomUUID(),
         projectId,
+        key,
         communityId: concept.communityId,
+        active: true,
         name: concept.name,
         nameRule: concept.nameRule,
         nameSource: concept.nameSource,
@@ -76,23 +76,22 @@ export async function saveAnalysis(result: AnalysisResult): Promise<{
         nodeCount: concept.nodeCount,
       })
       .onConflictDoUpdate({
-        target: [concepts.projectId, concepts.communityId],
+        target: [concepts.projectId, concepts.key],
         set: {
           ...(keepName ? {} : { name: concept.name, nameRule: concept.nameRule }),
+          communityId: concept.communityId,
+          active: true,
           filesJson: JSON.stringify(concept.files),
           nodeCount: concept.nodeCount,
-          updatedAt: Math.floor(Date.now() / 1000),
+          updatedAt: nowSec(),
         },
       });
   }
 
-  return { projectId, analysisId };
+  return { projectId, analysisId: saved?.id ?? analysisId };
 }
 
-export async function getAnalysis(analysisId: string) {
-  const rows = await db.select().from(analyses).where(eq(analyses.id, analysisId)).limit(1);
-  const row = rows[0];
-  if (!row) return null;
+function parseAnalysisRow(row: typeof analyses.$inferSelect) {
   return {
     ...row,
     map: JSON.parse(row.mapJson) as MapData,
@@ -100,7 +99,15 @@ export async function getAnalysis(analysisId: string) {
       ? (JSON.parse(row.timingsJson) as { clone: number; extract: number; layout: number })
       : undefined,
     fileCount: Object.keys(JSON.parse(row.fileHashesJson) as Record<string, string>).length,
+    conceptKeys: row.conceptKeysJson
+      ? (JSON.parse(row.conceptKeysJson) as Record<string, string>)
+      : null,
   };
+}
+
+export async function getAnalysis(analysisId: string) {
+  const rows = await db.select().from(analyses).where(eq(analyses.id, analysisId)).limit(1);
+  return rows[0] ? parseAnalysisRow(rows[0]) : null;
 }
 
 export async function getLatestAnalysisByRepo(repo: string) {
@@ -113,24 +120,59 @@ export async function getLatestAnalysisByRepo(repo: string) {
     .orderBy(desc(analyses.createdAt))
     .limit(1);
   if (!rows[0]) return null;
-  return { project: project[0], analysis: rows[0], map: JSON.parse(rows[0].mapJson) as MapData };
+  return { project: project[0], analysis: parseAnalysisRow(rows[0]), map: JSON.parse(rows[0].mapJson) as MapData };
 }
 
-/** communityId → 부채비율. 퀴즈를 본 적 없는 concept은 null(콜드 스타트) */
-export async function getDebtByCommunity(
-  projectId: string,
-  userId = "local",
+/** 분석 하나의 communityId → concept 키. 키 기록이 없는 옛 분석은 현재 concept 표로 대신한다 */
+export async function getConceptKeys(analysisId: string): Promise<Record<number, string>> {
+  const analysis = await getAnalysis(analysisId);
+  if (!analysis) return {};
+  if (analysis.conceptKeys) {
+    return Object.fromEntries(
+      Object.entries(analysis.conceptKeys).map(([communityId, key]) => [Number(communityId), key]),
+    );
+  }
+  const rows = await db
+    .select()
+    .from(concepts)
+    .where(and(eq(concepts.projectId, analysis.projectId), eq(concepts.active, true)));
+  return Object.fromEntries(rows.map((row) => [row.communityId, row.key]));
+}
+
+/**
+ * 분석 화면용 communityId → 부채비율. 퀴즈를 본 적 없는 concept은 null(콜드 스타트).
+ * userId가 없으면(익명 ID 쿠키가 아직 없는 첫 방문) 전부 콜드 스타트다.
+ */
+export async function getDebtForAnalysis(
+  analysisId: string,
+  userId: string | null,
 ): Promise<Record<number, number | null>> {
+  const analysis = await getAnalysis(analysisId);
+  if (!analysis || !userId) return {};
+  const keys = await getConceptKeys(analysisId);
+
   const rows = await db
     .select()
     .from(scores)
-    .where(and(eq(scores.projectId, projectId), eq(scores.userId, userId)));
+    .where(and(eq(scores.projectId, analysis.projectId), eq(scores.userId, userId)));
+  const byKey = new Map(rows.map((row) => [row.conceptKey, row]));
 
   const debt: Record<number, number | null> = {};
-  for (const row of rows) {
-    debt[row.communityId] = row.lastQuizAt ? 100 - row.score : null;
+  for (const [communityId, key] of Object.entries(keys)) {
+    const row = byKey.get(key);
+    debt[Number(communityId)] = row?.lastQuizAt ? 100 - row.score : null;
   }
   return debt;
+}
+
+export async function getConcept(projectId: string, key: string) {
+  const rows = await db
+    .select()
+    .from(concepts)
+    .where(and(eq(concepts.projectId, projectId), eq(concepts.key, key)))
+    .limit(1);
+  const row = rows[0];
+  return row ? { ...row, files: JSON.parse(row.filesJson) as string[] } : null;
 }
 
 // --- jobs ---

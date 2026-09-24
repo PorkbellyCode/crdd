@@ -59,6 +59,7 @@ docker run -p 3000:3000 crdd-web
 | `src/db/schema.ts` · `repo.ts` | Drizzle 스키마와 저장·조회 레이어 |
 | `src/lib/crdd/score.ts` | 배점 차등, 누적+스무딩, tier 가중치, overall 부채비율 (crdd-mcp에서 이식) |
 | `src/lib/crdd/concepts.ts` | 커뮤니티 → concept 이름 (1차, 결정론적, LLM 불필요) |
+| `src/lib/crdd/identity.ts` | concept 영속 키 — 재분석 때 파일 집합 유사도(Jaccard ≥ 0.5)로 기존 키를 이어받는다 |
 | `src/lib/crdd/layout.ts` | force-directed 레이아웃. 시드 고정이라 같은 커밋 = 같은 그림 |
 | `src/lib/crdd/map.ts` | 개념/파일 두 수준의 MapData 생성 |
 | `src/lib/crdd/ignore.ts` | 분석 전 제외할 매니페스트·설정 파일 |
@@ -87,10 +88,25 @@ bun db:studio                # 데이터 확인
 |---|---|
 | `projects` | 레포 하나 |
 | `analyses` | 커밋 시점 스냅샷 — MapData, 파일 해시, 소요 시간 |
-| `concepts` | communityId, 이름, nameSource(auto/llm/manual), 파일 목록 |
-| `scores` | concept별 점수, lastVerifiedCommit (화면에는 부채비율만 노출) |
+| `concepts` | 영속 키, 최신 communityId, 이름, nameSource(auto/llm/manual), 파일 목록 |
+| `scores` | 사용자 × concept 키별 점수, lastVerifiedCommit (화면에는 부채비율만 노출) |
 | `history` | 퀴즈 결과 이력 — 점수 공식이 과거 세션을 모두 합산한다 |
 | `jobs` | 분석 작업 상태 |
+
+### concept 키
+
+Graphify의 커뮤니티 번호는 재분석마다 다시 매겨진다. 점수를 번호에 붙이면
+재분석 뒤 엉뚱한 concept에 점수가 붙는다. 그래서 concept은 처음 생길 때
+`c<communityId>-<파일 집합 해시>` 형태의 **영속 키**를 받고, 이후 재분석에서는
+직전 concept과 파일 집합이 충분히 겹치면(Jaccard ≥ 0.5, 1:1 배정) 그 키를
+이어받는다. 분석마다 `communityId → 키` 매핑을 따로 저장해서 과거 분석 화면도
+정확한 점수를 보여준다.
+
+### 마이그레이션
+
+`drizzle/0001_concept_keys.sql`은 생성된 SQL에 `DEFAULT ''`와 기존 concept 백필을
+손으로 더한 것이다 — SQLite는 기본값 없는 NOT NULL 컬럼을 기존 테이블에 추가하지
+못한다. 기존 concept은 `c<번호>-legacy` 키를 받고, 다음 재분석 때 그 키를 이어받는다.
 
 재분석해도 **사용자가 고친 concept 이름은 덮어쓰지 않는다** (`nameSource`가 auto가
 아니면 유지). 큰 JSON은 지금 text 컬럼에 둔다 — porklog 기준 map 72KB, 해시 12KB.
@@ -123,7 +139,7 @@ fly tokens create deploy -x 999999h   # 출력을 GitHub 시크릿 FLY_API_TOKEN
 - 변경 감지는 git diff가 아니라 **blob SHA 스냅샷 비교** (`git ls-tree`로 clone 시점에 기록)
 - LLM은 **BYOK** — 키는 사용자 기기 보관, 서버 미저장. 분석 단계는 LLM을 아예 쓰지 않는다
 - 화면에는 **부채비율만** 표기. 이해도 점수는 내부 계산용
-- concept 키는 이름이 아니라 **communityId** — 이름이 바뀌어도 이력이 끊기지 않게
+- concept 키는 이름도 communityId도 아닌 **영속 키** — 이름이 바뀌어도, 재분석으로 커뮤니티 번호가 바뀌어도 이력이 끊기지 않게
 
 ## 다음 (P2 이후)
 

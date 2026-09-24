@@ -35,8 +35,9 @@ export interface GraphJson {
 /**
  * concept — Graphify 커뮤니티 하나에 대응한다.
  *
- * 키는 이름이 아니라 communityId다. 1차 이름(결정론적)이 2차(LLM)에서 바뀌어도
- * 점수 이력이 끊기면 안 되기 때문이다. MCP판 스키마는 이름을 키로 썼는데,
+ * 점수가 붙는 키는 이름도 communityId도 아니다. 이름은 2차(LLM)에서 바뀌고,
+ * communityId는 재분석마다 다시 매겨진다. 저장할 때 파일 집합 유사도로 영속 키를
+ * 배정한다 (src/lib/crdd/identity.ts). MCP판 스키마는 이름을 키로 썼는데,
  * 웹앱으로 옮기면서 바뀐 부분이다.
  */
 export interface Concept {

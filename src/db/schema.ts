@@ -3,7 +3,9 @@
  *
  * 설계 근거는 프로젝트 문서:
  *   - concept 단위 점수와 history: "CRDD 이해도 점수 유지 설계"
- *   - concept 키는 이름이 아니라 communityId: "CRDD concept 이름 생성 규칙"
+ *   - concept 키는 이름도 communityId도 아닌 영속 키(key): "CRDD concept 이름 생성 규칙"
+ *     (communityId는 재분석마다 다시 매겨지므로 파일 집합 유사도로 키를 이어받는다
+ *      — src/lib/crdd/identity.ts)
  *   - 변경 감지는 blob SHA 스냅샷 비교: "CRDD 웹앱 전환 단계별 계획"
  *
  * 큰 JSON(graph, map, 해시 스냅샷)은 지금은 text 컬럼에 둔다. porklog 기준
@@ -42,6 +44,8 @@ export const analyses = sqliteTable(
     mapJson: text("map_json").notNull(),
     /** 파일 경로 → blob SHA. 다음 분석 때 stale 판정에 쓴다 */
     fileHashesJson: text("file_hashes_json").notNull(),
+    /** 이 분석의 communityId → concept 영속 키. 과거 분석 화면도 점수를 정확히 찾게 한다 */
+    conceptKeysJson: text("concept_keys_json"),
     nodeCount: integer("node_count").notNull(),
     edgeCount: integer("edge_count").notNull(),
     conceptCount: integer("concept_count").notNull(),
@@ -55,7 +59,12 @@ export const analyses = sqliteTable(
   ],
 );
 
-/** concept = Graphify 커뮤니티 하나. 이름은 바뀔 수 있으므로 키가 아니다 */
+/**
+ * concept = Graphify 커뮤니티 하나.
+ *
+ * 이름도 communityId도 키가 아니다. 이름은 2차(LLM)·수동으로 바뀌고, communityId는
+ * 재분석마다 다시 매겨진다. 점수는 영속 키(key)에 붙는다.
+ */
 export const concepts = sqliteTable(
   "concepts",
   {
@@ -63,7 +72,12 @@ export const concepts = sqliteTable(
     projectId: text("project_id")
       .notNull()
       .references(() => projects.id, { onDelete: "cascade" }),
+    /** 영속 키 — 처음 생길 때 `c<communityId>-<파일 집합 해시>`, 이후 불변 */
+    key: text("key").notNull(),
+    /** 최신 분석에서의 커뮤니티 번호 (표시·조회용, 키 아님) */
     communityId: integer("community_id").notNull(),
+    /** 최신 분석에 이 concept이 남아 있는지. 사라진 concept도 이력 보존을 위해 지우지 않는다 */
+    active: integer("active", { mode: "boolean" }).notNull().default(true),
     name: text("name").notNull(),
     /** 어떤 규칙으로 이름이 나왔는지 — 화면에 근거를 보여줄 수 있게 */
     nameRule: text("name_rule"),
@@ -73,14 +87,17 @@ export const concepts = sqliteTable(
     nodeCount: integer("node_count").notNull(),
     updatedAt: integer("updated_at").notNull().default(now),
   },
-  (table) => [uniqueIndex("concepts_project_community_idx").on(table.projectId, table.communityId)],
+  (table) => [
+    uniqueIndex("concepts_project_key_idx").on(table.projectId, table.key),
+    index("concepts_project_community_idx").on(table.projectId, table.communityId),
+  ],
 );
 
 /**
  * 사용자 × concept의 이해도.
  *
  * score는 내부 계산용이고 화면에는 부채비율(100 - score)만 노출한다.
- * userId는 로그인이 붙기 전(P3)까지 "local"로 채운다.
+ * userId는 로그인이 붙기 전(P3)까지 익명 기기 ID(쿠키 crdd_uid)다.
  */
 export const scores = sqliteTable(
   "scores",
@@ -90,7 +107,7 @@ export const scores = sqliteTable(
     projectId: text("project_id")
       .notNull()
       .references(() => projects.id, { onDelete: "cascade" }),
-    communityId: integer("community_id").notNull(),
+    conceptKey: text("concept_key").notNull(),
     score: integer("score").notNull().default(0),
     /** 이 점수를 검증한 시점의 커밋 — 이후 파일이 바뀌면 stale */
     lastVerifiedCommit: text("last_verified_commit"),
@@ -98,10 +115,10 @@ export const scores = sqliteTable(
     updatedAt: integer("updated_at").notNull().default(now),
   },
   (table) => [
-    uniqueIndex("scores_user_project_community_idx").on(
+    uniqueIndex("scores_user_project_concept_idx").on(
       table.userId,
       table.projectId,
-      table.communityId,
+      table.conceptKey,
     ),
   ],
 );
@@ -115,7 +132,7 @@ export const history = sqliteTable(
     projectId: text("project_id")
       .notNull()
       .references(() => projects.id, { onDelete: "cascade" }),
-    communityId: integer("community_id").notNull(),
+    conceptKey: text("concept_key").notNull(),
     commit: text("commit").notNull(),
     /** 배점 차등이 반영된 가중 정답 수라 정수가 아니다 */
     correct: real("correct").notNull(),
@@ -124,7 +141,10 @@ export const history = sqliteTable(
     scoreAfter: integer("score_after").notNull(),
     createdAt: integer("created_at").notNull().default(now),
   },
-  (table) => [index("history_user_project_idx").on(table.userId, table.projectId)],
+  (table) => [
+    index("history_user_project_idx").on(table.userId, table.projectId),
+    index("history_user_concept_idx").on(table.userId, table.projectId, table.conceptKey),
+  ],
 );
 
 /** 분석 작업. 인메모리 Map을 대체한다 — 재시작해도 결과가 남는다 */
