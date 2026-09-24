@@ -1,8 +1,10 @@
 "use client";
 
-import { CircleCheck, CircleDashed, CircleX, TriangleAlert } from "lucide-react";
+import { CircleCheck, CircleDashed, CircleX, Maximize2, Minus, Plus, TriangleAlert } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { usePanZoom } from "@/lib/client/use-pan-zoom";
+import { tidyBubbles } from "@/lib/crdd/tidy";
 import type { MapData } from "@/lib/crdd/types";
 
 /**
@@ -57,6 +59,26 @@ export default function UnderstandingMap({ data, debt, debtIsExample, renderActi
   const current = data.concepts[selected];
   const currentDebt = current ? (debt[current.id] ?? null) : null;
 
+  // 저장된 좌표를 화면용으로 정돈 — 뭉친 개념을 벌리고, 결과를 감싸는 viewBox를 만든다
+  const conceptLayout = useMemo(
+    () =>
+      tidyBubbles(
+        data.concepts.map((c) => ({ x: c.x, y: c.y, r: c.r, label: c.name })),
+        data.clinks,
+      ),
+    [data],
+  );
+  const fileLayout = useMemo(
+    () => tidyBubbles(data.nodes.map((n) => ({ x: n.x, y: n.y, r: 2.6 })), [], { relax: false, gap: 4, pad: 16 }),
+    [data],
+  );
+  const cpos = conceptLayout.points;
+  const npos = fileLayout.points;
+  const pz = usePanZoom(view === "concept" ? conceptLayout.box : fileLayout.box);
+  const select = (index: number) => {
+    if (!pz.dragged.current) setSelected(index);
+  };
+
   return (
     <div>
       <div className="mb-3 flex flex-wrap items-center gap-2" role="group" aria-label="보기 전환">
@@ -82,18 +104,53 @@ export default function UnderstandingMap({ data, debt, debtIsExample, renderActi
       </div>
 
       <div className="grid items-start gap-3.5 lg:grid-cols-[minmax(0,1fr)_300px]">
-        <div className="overflow-hidden rounded-lg border border-border bg-editor">
+        <div className="relative overflow-hidden rounded-lg border border-border bg-editor">
+          <div className="absolute top-2 right-2 z-10 flex overflow-hidden rounded-md border border-border bg-chrome">
+            <button
+              type="button"
+              onClick={() => pz.zoomBy(1 / 1.3)}
+              className="grid size-7 place-items-center text-muted-foreground hover:bg-secondary hover:text-foreground"
+              aria-label="확대"
+              title="확대"
+            >
+              <Plus className="size-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => pz.zoomBy(1.3)}
+              className="grid size-7 place-items-center border-x border-border text-muted-foreground hover:bg-secondary hover:text-foreground"
+              aria-label="축소"
+              title="축소"
+            >
+              <Minus className="size-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={pz.fit}
+              className="flex h-7 items-center gap-1.5 px-2 text-xs text-muted-foreground hover:bg-secondary hover:text-foreground"
+              title="전체 보기"
+            >
+              <Maximize2 className="size-3" aria-hidden />
+              {Math.round(pz.zoom * 100)}%
+            </button>
+          </div>
+          <p className="pointer-events-none absolute bottom-2 left-3 z-10 text-[11px] text-dim">
+            스크롤로 확대, 드래그로 이동
+          </p>
           <svg
-            viewBox="0 0 1000 660"
+            ref={pz.svgRef}
+            viewBox={pz.viewBox}
+            preserveAspectRatio="xMidYMid meet"
             role="img"
             aria-label={`${data.repo}의 코드 구조를 ${data.concepts.length}개 개념으로 묶어 보여주는 지도`}
-            className="block h-auto w-full"
+            className="block h-[min(68vh,600px)] w-full cursor-grab touch-none select-none active:cursor-grabbing"
+            {...pz.handlers}
           >
             {view === "concept" ? (
               <>
                 {data.clinks.map((link, i) => {
-                  const a = data.concepts[link.s]!;
-                  const b = data.concepts[link.t]!;
+                  const a = cpos[link.s]!;
+                  const b = cpos[link.t]!;
                   const on = link.s === selected || link.t === selected;
                   return (
                     <line
@@ -109,6 +166,7 @@ export default function UnderstandingMap({ data, debt, debtIsExample, renderActi
                   );
                 })}
                 {data.concepts.map((concept, i) => {
+                  const at = cpos[i]!;
                   const value = debt[concept.id] ?? null;
                   const color = debtColor(value);
                   const on = i === selected;
@@ -120,25 +178,25 @@ export default function UnderstandingMap({ data, debt, debtIsExample, renderActi
                       aria-label={`${concept.name}, 심볼 ${concept.nodes}개, ${value === null ? "미측정" : `부채비율 ${value}%`}`}
                       aria-pressed={on}
                       className="cursor-pointer outline-none"
-                      onClick={() => setSelected(i)}
+                      onClick={() => select(i)}
                       onKeyDown={(event) => {
                         if (event.key === "Enter" || event.key === " ") {
                           event.preventDefault();
-                          setSelected(i);
+                          select(i);
                         }
                       }}
                     >
                       <circle
-                        cx={concept.x}
-                        cy={concept.y}
+                        cx={at.x}
+                        cy={at.y}
                         r={concept.r}
                         style={{ fill: color, stroke: on ? "var(--primary)" : color }}
                         fillOpacity={on ? 0.28 : 0.13}
                         strokeWidth={on ? 2.4 : 1.4}
                       />
                       <text
-                        x={concept.x}
-                        y={concept.y + 4}
+                        x={at.x}
+                        y={at.y + 4}
                         textAnchor="middle"
                         // 글자 뒤에 편집기 배경색 테두리를 둘러 선·원 위에서도 읽히게 한다
                         style={{
@@ -155,8 +213,8 @@ export default function UnderstandingMap({ data, debt, debtIsExample, renderActi
                         {concept.name}
                       </text>
                       <text
-                        x={concept.x}
-                        y={concept.y + concept.r + 14}
+                        x={at.x}
+                        y={at.y + concept.r + 14}
                         textAnchor="middle"
                         style={{
                           fill: color,
@@ -176,8 +234,8 @@ export default function UnderstandingMap({ data, debt, debtIsExample, renderActi
             ) : (
               <>
                 {data.links.map((link, i) => {
-                  const a = data.nodes[link.s]!;
-                  const b = data.nodes[link.t]!;
+                  const a = npos[link.s]!;
+                  const b = npos[link.t]!;
                   return (
                     <line
                       key={i}
@@ -197,13 +255,14 @@ export default function UnderstandingMap({ data, debt, debtIsExample, renderActi
                   return (
                     <circle
                       key={i}
-                      cx={node.x}
-                      cy={node.y}
+                      cx={npos[i]!.x}
+                      cy={npos[i]!.y}
                       r={2.6}
                       style={{ fill: debtColor(value) }}
-                      fillOpacity={0.85}
+                      // 선택한 개념의 심볼만 진하게 — 파일 보기에서도 개념의 범위가 보이게
+                      fillOpacity={current && node.c === current.id ? 0.95 : 0.35}
                       className="cursor-pointer"
-                      onClick={() => index !== undefined && setSelected(index)}
+                      onClick={() => index !== undefined && select(index)}
                     >
                       <title>{`${node.l} — ${node.f ?? ""}`}</title>
                     </circle>
