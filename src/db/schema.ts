@@ -133,7 +133,10 @@ export const history = sqliteTable(
       .notNull()
       .references(() => projects.id, { onDelete: "cascade" }),
     conceptKey: text("concept_key").notNull(),
+    quizId: text("quiz_id"),
     commit: text("commit").notNull(),
+    /** 문항별 결과 (first_try | after_hint | after_explanation | unresolved) */
+    outcomesJson: text("outcomes_json"),
     /** 배점 차등이 반영된 가중 정답 수라 정수가 아니다 */
     correct: real("correct").notNull(),
     total: integer("total").notNull(),

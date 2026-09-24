@@ -6,6 +6,7 @@ import { Stat, StatStrip } from "@/components/Stat";
 import StartQuizButton from "@/components/StartQuizButton";
 import UnderstandingMap from "@/components/UnderstandingMap";
 import { Button } from "@/components/ui/button";
+import { overallDebtRatio } from "@/lib/crdd/score";
 import type { MapData } from "@/lib/crdd/types";
 
 interface JobView {
@@ -122,21 +123,26 @@ export default function AnalysisPage({ params }: { params: Promise<{ id: string 
     map.concepts.map((concept) => [concept.id, job.debt?.[concept.id] ?? null]),
   );
   const measured = map.concepts.filter((c) => debt[c.id] !== null);
-  const overall = measured.length
-    ? Math.round(measured.reduce((sum, c) => sum + (debt[c.id] ?? 0), 0) / measured.length)
-    : 100;
+  // 데모와 같은 공식 — 파일 tier 가중 평균, 퀴즈를 안 본 개념은 부채 100%로 친다
+  const overall = overallDebtRatio(
+    map.concepts.map((concept) => {
+      const value = debt[concept.id];
+      return { files: concept.files, score: value === null || value === undefined ? null : 100 - value };
+    }),
+  );
 
   return (
     <main className="mx-auto max-w-6xl px-5 pt-10 pb-16">
       <p className="eyebrow mb-2.5">Analyzed · {map.commit}</p>
       <h1 className="text-[clamp(24px,3.4vw,34px)] font-bold tracking-tight">{map.repo}</h1>
       <p className="mt-2.5 max-w-[64ch] text-sm text-muted-foreground">
-        구조 분석이 끝났습니다. 아직 퀴즈를 풀지 않아 모든 개념이 콜드 스타트 상태입니다 —
-        부채비율은 퀴즈를 풀면서 채워집니다.
+        {measured.length === 0
+          ? "구조 분석이 끝났습니다. 아직 퀴즈를 풀지 않아 모든 개념이 콜드 스타트 상태입니다 — 개념을 골라 퀴즈를 풀면 부채비율이 채워집니다."
+          : `${map.concepts.length}개 개념 중 ${measured.length}개를 측정했습니다. 측정하지 않은 개념은 부채 100%로 계산합니다.`}
       </p>
 
       <StatStrip>
-        <Stat value={`${overall}%`} label="overall 부채비율" />
+        <Stat value={`${overall}%`} label={`overall 부채비율 · 측정 ${measured.length}/${map.concepts.length}`} />
         <Stat value={map.counts.nodes} label="nodes" />
         <Stat value={map.counts.edges} label="edges" />
         <Stat value={map.concepts.length} label="concepts" />

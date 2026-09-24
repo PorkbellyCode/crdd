@@ -189,8 +189,22 @@ export default function QuizRunner({ initial, returnTo }: { initial: QuizView; r
         <Card className="gap-2 p-4">
           <p className="eyebrow">Done</p>
           <h2 className="text-base font-semibold">퀴즈를 마쳤습니다</h2>
+          {quiz.result ? (
+            <div className="flex items-baseline gap-2 font-mono">
+              <span className="text-lg text-muted-foreground">
+                {quiz.result.debtBefore === null ? "미측정" : `${quiz.result.debtBefore}%`}
+              </span>
+              <span className="text-dim">→</span>
+              <b className="text-3xl font-semibold tracking-tight tabular">{quiz.result.debtAfter}%</b>
+              <span className="eyebrow">부채비율</span>
+            </div>
+          ) : null}
           <p className="font-mono text-[11px] text-muted-foreground">
             {quiz.questions.map((q) => (q.outcome ? OUTCOME_LABEL[q.outcome] : "—")).join(" · ")}
+          </p>
+          <p className="text-xs leading-relaxed text-dim">
+            점수는 이 개념에서 푼 모든 퀴즈를 합산하고, 확인되지 않은 가상의 문항 4개를 얹어
+            계산합니다. 한 번 잘 풀었다고 부채가 0이 되지는 않습니다.
           </p>
           {returnTo ? (
             <Button render={<Link href={returnTo} />} variant="secondary" className="mt-2 self-start">

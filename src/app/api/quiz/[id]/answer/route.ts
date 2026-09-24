@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { closeQuiz, getQuiz, saveQuizProgress } from "@/db/quiz-repo";
+import { closeQuiz, getQuiz, saveQuizProgress, saveQuizResult } from "@/db/quiz-repo";
+import { applyQuizScore } from "@/db/score-repo";
 import { readLlmCredentials } from "@/lib/llm/request";
 import { errorResponse, QuizError } from "@/lib/quiz/errors";
 import { applyVerdict, currentIndex, isFinished } from "@/lib/quiz/flow";
@@ -57,9 +58,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     progress[index] = applyVerdict(current, giveUp ? "" : answer, verdict);
 
     if (isFinished(progress)) {
+      // 닫기에 성공한 요청 하나만 점수를 반영한다 — 이력이 두 번 쌓이지 않게
       const closed = await closeQuiz(id, progress);
       if (!closed) throw new QuizError("이미 끝난 퀴즈입니다", 409);
-      return NextResponse.json(toQuizView({ ...quiz, status: "done", progress }));
+      const result = await applyQuizScore({ ...quiz, progress });
+      await saveQuizResult(id, result);
+      return NextResponse.json(toQuizView({ ...quiz, status: "done", progress, result }));
     }
 
     if (!(await saveQuizProgress(id, progress))) throw new QuizError("이미 끝난 퀴즈입니다", 409);
