@@ -30,7 +30,7 @@ Next standalone 서버와 자식 프로세스(git·graphify) 실행이 가장 �
 - `/` — 레포 주소를 넣으면 분석이 시작된다
 - `/a/[id]` — 진행 상태 → 완료 시 Understanding Map. 개념을 골라 퀴즈를 시작한다
 - `/quiz/[id]` — 퀴즈 3문항 순차 풀이 → 부채비율 반영
-- `/settings` — Anthropic API 키(BYOK)와 모델 선택
+- `/settings` — LLM API 키(BYOK) — 제공자·모델 선택
 - `/me` — 내 프로젝트 (로그인 필요)
 - `/demo` — porklog 그래프 + **예시** 부채비율
 
@@ -61,7 +61,7 @@ docker run -p 3000:3000 crdd-web
 | `src/lib/analysis/jobs.ts` | 분석 작업 실행기 — 상태와 결과를 DB에 쓴다 |
 | `src/db/schema.ts` · `repo.ts` | Drizzle 스키마와 저장·조회 레이어 |
 | `src/lib/github/source.ts` | 출제용 코드 조회 — raw.githubusercontent.com, 커밋 SHA 고정, 크기 상한 |
-| `src/lib/llm/*` | BYOK — 헤더 규약, 브라우저 보관(localStorage), Anthropic 최소 클라이언트 |
+| `src/lib/llm/*` | BYOK — 제공자 목록, 헤더 규약, 브라우저 보관(제공자별), Anthropic / OpenAI 호환 클라이언트 |
 | `src/lib/quiz/prompts.ts` | 출제·채점 프롬프트 (crdd-mcp의 QUIZ_INSTRUCTIONS를 승격) |
 | `src/lib/quiz/flow.ts` | 문항 단계 상태 머신 first → hint → explanation → unresolved |
 | `src/lib/quiz/view.ts` | 단계에 맞게 rubric·힌트·설명을 걸러 화면으로 내보냄 |
@@ -166,7 +166,9 @@ fly tokens create deploy -x 999999h   # 출력을 GitHub 시크릿 FLY_API_TOKEN
 → 마지막 문항이 끝나면 점수 v2로 concept 점수 갱신 → 지도에 부채비율
 ```
 
-- 키는 브라우저 localStorage에만 두고 `x-crdd-llm-key` / `x-crdd-llm-model` 헤더로
+- 제공자는 Anthropic, OpenAI, Google(Gemini), OpenRouter. 구현은 두 갈래 —
+  Anthropic Messages API, 그리고 OpenAI 호환 Chat Completions 하나(주소만 다름)
+- 키는 브라우저 localStorage에 제공자별로 두고 `x-crdd-llm-provider` / `x-crdd-llm-key` / `x-crdd-llm-model` 헤더로
   요청마다 보낸다. 서버는 그 요청 안에서만 쓰고 DB·로그·에러에 남기지 않는다
 - "모르겠어요"는 LLM을 부르지 않고 출제 때 만든 힌트·설명으로 넘어간다
 - 사용자는 로그인했으면 계정 ID, 아니면 익명 기기 ID 쿠키(`crdd_uid`)로 구분한다.
