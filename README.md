@@ -31,6 +31,7 @@ Next standalone 서버와 자식 프로세스(git·graphify) 실행이 가장 �
 - `/a/[id]` — 진행 상태 → 완료 시 Understanding Map. 개념을 골라 퀴즈를 시작한다
 - `/quiz/[id]` — 퀴즈 3문항 순차 풀이 → 부채비율 반영
 - `/settings` — Anthropic API 키(BYOK)와 모델 선택
+- `/me` — 내 프로젝트 (로그인 필요)
 - `/demo` — porklog 그래프 + **예시** 부채비율
 
 Docker로 돌리려면:
@@ -65,7 +66,9 @@ docker run -p 3000:3000 crdd-web
 | `src/lib/quiz/flow.ts` | 문항 단계 상태 머신 first → hint → explanation → unresolved |
 | `src/lib/quiz/view.ts` | 단계에 맞게 rubric·힌트·설명을 걸러 화면으로 내보냄 |
 | `src/db/quiz-repo.ts` · `score-repo.ts` | 퀴즈 세션 저장, 결과 → 점수 v2(누적+스무딩) 반영 |
-| `src/lib/user.ts` | 익명 기기 ID 쿠키 (로그인 전 사용자 구분) |
+| `src/auth.ts` | 로그인 (Auth.js v5, GitHub) — JWT 세션, 로그인 시 users upsert + 익명 기록 병합 |
+| `src/lib/user.ts` | 현재 사용자 — 로그인 계정 ID, 아니면 익명 기기 ID 쿠키 |
+| `src/db/merge-repo.ts` | 익명 기록 → 계정 이전 (겹치는 concept은 합친 이력으로 점수 재계산) |
 | `src/lib/crdd/score.ts` | 배점 차등, 누적+스무딩, tier 가중치, overall 부채비율 (crdd-mcp에서 이식) |
 | `src/lib/crdd/concepts.ts` | 커뮤니티 → concept 이름 (1차, 결정론적, LLM 불필요) |
 | `src/lib/crdd/identity.ts` | concept 영속 키 — 재분석 때 파일 집합 유사도(Jaccard ≥ 0.5)로 기존 키를 이어받는다 |
@@ -100,6 +103,7 @@ bun db:studio                # 데이터 확인
 | `concepts` | 영속 키, 최신 communityId, 이름, nameSource(auto/llm/manual), 파일 목록 |
 | `scores` | 사용자 × concept 키별 점수, lastVerifiedCommit (화면에는 부채비율만 노출) |
 | `history` | 퀴즈 결과 이력 — 점수 공식이 과거 세션을 모두 합산한다 |
+| `users` | 계정 — id = `github:<계정 번호>`, OAuth 토큰은 저장하지 않음 |
 | `quizzes` | 퀴즈 세션 — 문항(rubric 포함, 서버 밖으로 그대로 안 나감)과 진행 상태 |
 | `jobs` | 분석 작업 상태 |
 
@@ -157,7 +161,31 @@ fly tokens create deploy -x 999999h   # 출력을 GitHub 시크릿 FLY_API_TOKEN
 - 키는 브라우저 localStorage에만 두고 `x-crdd-llm-key` / `x-crdd-llm-model` 헤더로
   요청마다 보낸다. 서버는 그 요청 안에서만 쓰고 DB·로그·에러에 남기지 않는다
 - "모르겠어요"는 LLM을 부르지 않고 출제 때 만든 힌트·설명으로 넘어간다
-- 사용자는 익명 기기 ID 쿠키(`crdd_uid`)로 구분한다. 첫 퀴즈를 만들 때 생긴다
+- 사용자는 로그인했으면 계정 ID, 아니면 익명 기기 ID 쿠키(`crdd_uid`)로 구분한다.
+  로그인하면 그 브라우저의 익명 기록이 계정으로 옮겨진다
+
+## 로그인
+
+GitHub OAuth App을 만들고 Redirect URI에 `<주소>/api/auth/callback/github`를 넣는다
+(로컬은 `http://localhost:3000/...`). 요청 scope는 기본값(read:user, user:email)뿐이라
+레포 권한은 없다.
+
+```bash
+# .env.local (로컬) / fly secrets set (운영)
+AUTH_SECRET=...        # bunx auth secret
+AUTH_GITHUB_ID=...
+AUTH_GITHUB_SECRET=...
+```
+
+운영의 `AUTH_URL`은 `fly.toml`에 고정돼 있다. standalone 서버는 요청 주소를 `0.0.0.0`으로
+보기 때문에, 없으면 콜백 주소가 등록한 Redirect URI와 어긋난다.
+
+| | 비로그인 | 로그인 |
+|---|---|---|
+| 데모·분석 결과 보기 | ✓ | ✓ |
+| 새 레포 분석 | — | ✓ |
+| 퀴즈 (본인 키) | ✓ (익명 ID에 기록) | ✓ |
+| 내 프로젝트 | — | ✓ |
 
 ## 테스트
 
@@ -179,7 +207,7 @@ bun run typecheck
 
 1. concept 이름 2차 — 사용자 키로 LLM 다듬기 + 직접 수정 UI (`nameSource` 준비됨)
 2. 데모 스냅샷을 실제 퀴즈 결과로 교체 (지금 `/demo` 부채비율은 예시 값)
-3. 로그인 — Auth.js GitHub/Google. 익명 ID 기록을 계정으로 옮기기
+3. Google 로그인 추가, 개념별 추이 그래프
 4. 변경 감지 — 저장된 해시 스냅샷과 비교해 stale 표시
 5. 작업 복구 — 실행 중 재시작하면 running 상태로 남는다
 6. 데모 남용 방지 — 레이트 리밋, 레포 크기 상한, 동시 분석 수 제한
