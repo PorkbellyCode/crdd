@@ -5,9 +5,6 @@
  * 실려 온다. 서버는 그 요청 안에서 LLM을 부르는 데만 쓰고 DB·로그·에러 메시지
  * 어디에도 남기지 않는다.
  */
+export const LLM_PROVIDER_HEADER = "x-crdd-llm-provider";
 export const LLM_KEY_HEADER = "x-crdd-llm-key";
 export const LLM_MODEL_HEADER = "x-crdd-llm-model";
-
-/** Anthropic 키 형태만 받는다 (sk-ant-...) */
-export const API_KEY_PATTERN = /^sk-ant-[A-Za-z0-9_-]{20,}$/;
-export const MODEL_PATTERN = /^claude-[a-z0-9.-]+$/;

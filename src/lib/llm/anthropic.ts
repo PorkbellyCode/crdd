@@ -8,20 +8,13 @@
  * 요청 본문을 절대 넣지 않는다 — 에러는 화면과 서버 로그로 흘러가기 때문이다.
  */
 import "server-only";
+import { filterModels, type ModelInfo } from "./providers";
+import { LlmError, type LlmClient, type ToolCall } from "./types";
+
+export { LlmError };
 
 const API = "https://api.anthropic.com/v1";
 const VERSION = "2023-06-01";
-
-export class LlmError extends Error {
-  constructor(
-    message: string,
-    /** 브라우저에 돌려줄 HTTP 상태 */
-    readonly status: number,
-  ) {
-    super(message);
-    this.name = "LlmError";
-  }
-}
 
 function headers(apiKey: string) {
   return {
@@ -59,11 +52,6 @@ async function toLlmError(response: Response): Promise<LlmError> {
   }
 }
 
-export interface ModelInfo {
-  id: string;
-  name: string;
-}
-
 /** 키 확인 겸 모델 목록. 최신 모델이 앞에 온다 */
 export async function listModels(apiKey: string): Promise<ModelInfo[]> {
   const response = await fetch(`${API}/models?limit=100`, {
@@ -73,16 +61,10 @@ export async function listModels(apiKey: string): Promise<ModelInfo[]> {
   });
   if (!response.ok) throw await toLlmError(response);
   const body = (await response.json()) as { data: { id: string; display_name?: string }[] };
-  return body.data.map((model) => ({ id: model.id, name: model.display_name ?? model.id }));
-}
-
-export interface ToolCall<TInput> {
-  apiKey: string;
-  model: string;
-  system: string;
-  prompt: string;
-  tool: { name: string; description: string; input_schema: Record<string, unknown> };
-  maxTokens?: number;
+  return filterModels(
+    "anthropic",
+    body.data.map((model) => ({ id: model.id, name: model.display_name ?? model.id })),
+  );
 }
 
 /** 도구 하나를 강제로 호출하게 해서 그 입력(JSON)을 결과로 받는다 */
@@ -93,7 +75,7 @@ export async function callTool<TInput>({
   prompt,
   tool,
   maxTokens = 4096,
-}: ToolCall<TInput>): Promise<TInput> {
+}: ToolCall): Promise<TInput> {
   let response: Response;
   try {
     response = await fetch(`${API}/messages`, {
@@ -130,3 +112,5 @@ export async function callTool<TInput>({
   }
   return call.input as TInput;
 }
+
+export const anthropicClient: LlmClient = { listModels, callTool };

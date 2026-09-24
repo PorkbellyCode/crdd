@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { LlmError } from "@/lib/llm/anthropic";
+import { LlmError } from "@/lib/llm/types";
 
 export class QuizError extends Error {
   constructor(

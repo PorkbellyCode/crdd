@@ -19,7 +19,7 @@ export const maxDuration = 120;
  */
 export async function POST(request: Request) {
   try {
-    const { apiKey, model } = readLlmCredentials(request);
+    const credentials = readLlmCredentials(request);
     const body = (await request.json().catch(() => null)) as {
       analysisId?: unknown;
       communityId?: unknown;
@@ -53,8 +53,7 @@ export async function POST(request: Request) {
     }
 
     const questions = await generateQuestions({
-      apiKey,
-      model,
+      ...credentials,
       repo: analysis.map.repo,
       commit: analysis.commit,
       concept: { name: stored?.name ?? mapConcept.name, files: mapConcept.files, top: mapConcept.top },
@@ -74,7 +73,8 @@ export async function POST(request: Request) {
       conceptKey,
       conceptName: stored?.name ?? mapConcept.name,
       commit: analysis.commit,
-      model,
+      // 어느 제공자의 어떤 모델로 냈는지 — 키는 저장하지 않는다
+      model: `${credentials.provider}:${credentials.model}`,
       questions,
       progress,
     });

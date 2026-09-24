@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
-import { LlmError, listModels } from "@/lib/llm/anthropic";
-import { readLlmKey } from "@/lib/llm/request";
+import { defaultModel } from "@/lib/llm/providers";
+import { readLlmKey, readLlmProvider } from "@/lib/llm/request";
+import { llmClient } from "@/lib/llm/server";
+import { LlmError } from "@/lib/llm/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -8,9 +10,16 @@ export const dynamic = "force-dynamic";
 /** 키 확인 — 모델 목록을 받아오면 유효한 키다. 키는 저장하지 않는다 */
 export async function POST(request: Request) {
   try {
-    const apiKey = readLlmKey(request);
-    const models = await listModels(apiKey);
-    return NextResponse.json({ models }, { headers: { "cache-control": "no-store" } });
+    const provider = readLlmProvider(request);
+    const apiKey = readLlmKey(request, provider);
+    const models = await llmClient(provider).listModels(apiKey);
+    if (models.length === 0) {
+      throw new LlmError("이 키로 쓸 수 있는 대화 모델을 찾지 못했습니다.", 400);
+    }
+    return NextResponse.json(
+      { models, defaultModel: defaultModel(provider, models) },
+      { headers: { "cache-control": "no-store" } },
+    );
   } catch (error) {
     if (error instanceof LlmError) {
       return NextResponse.json({ error: error.message }, { status: error.status });
