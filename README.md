@@ -28,7 +28,9 @@ bun dev                        # http://localhost:3000
 Next standalone 서버와 자식 프로세스(git·graphify) 실행이 가장 검증된 조합이라서다.
 
 - `/` — 레포 주소를 넣으면 분석이 시작된다
-- `/a/[id]` — 진행 상태 → 완료 시 Understanding Map (퀴즈 전이라 전부 콜드 스타트)
+- `/a/[id]` — 진행 상태 → 완료 시 Understanding Map. 개념을 골라 퀴즈를 시작한다
+- `/quiz/[id]` — 퀴즈 3문항 순차 풀이 → 부채비율 반영
+- `/settings` — Anthropic API 키(BYOK)와 모델 선택
 - `/demo` — porklog 그래프 + **예시** 부채비율
 
 Docker로 돌리려면:
@@ -57,6 +59,13 @@ docker run -p 3000:3000 crdd-web
 | `src/lib/analysis/analyze.ts` | 파이프라인 — clone → 해시 스냅샷 → graphify → concept → 레이아웃 → **소스 삭제** |
 | `src/lib/analysis/jobs.ts` | 분석 작업 실행기 — 상태와 결과를 DB에 쓴다 |
 | `src/db/schema.ts` · `repo.ts` | Drizzle 스키마와 저장·조회 레이어 |
+| `src/lib/github/source.ts` | 출제용 코드 조회 — raw.githubusercontent.com, 커밋 SHA 고정, 크기 상한 |
+| `src/lib/llm/*` | BYOK — 헤더 규약, 브라우저 보관(localStorage), Anthropic 최소 클라이언트 |
+| `src/lib/quiz/prompts.ts` | 출제·채점 프롬프트 (crdd-mcp의 QUIZ_INSTRUCTIONS를 승격) |
+| `src/lib/quiz/flow.ts` | 문항 단계 상태 머신 first → hint → explanation → unresolved |
+| `src/lib/quiz/view.ts` | 단계에 맞게 rubric·힌트·설명을 걸러 화면으로 내보냄 |
+| `src/db/quiz-repo.ts` · `score-repo.ts` | 퀴즈 세션 저장, 결과 → 점수 v2(누적+스무딩) 반영 |
+| `src/lib/user.ts` | 익명 기기 ID 쿠키 (로그인 전 사용자 구분) |
 | `src/lib/crdd/score.ts` | 배점 차등, 누적+스무딩, tier 가중치, overall 부채비율 (crdd-mcp에서 이식) |
 | `src/lib/crdd/concepts.ts` | 커뮤니티 → concept 이름 (1차, 결정론적, LLM 불필요) |
 | `src/lib/crdd/identity.ts` | concept 영속 키 — 재분석 때 파일 집합 유사도(Jaccard ≥ 0.5)로 기존 키를 이어받는다 |
@@ -91,6 +100,7 @@ bun db:studio                # 데이터 확인
 | `concepts` | 영속 키, 최신 communityId, 이름, nameSource(auto/llm/manual), 파일 목록 |
 | `scores` | 사용자 × concept 키별 점수, lastVerifiedCommit (화면에는 부채비율만 노출) |
 | `history` | 퀴즈 결과 이력 — 점수 공식이 과거 세션을 모두 합산한다 |
+| `quizzes` | 퀴즈 세션 — 문항(rubric 포함, 서버 밖으로 그대로 안 나감)과 진행 상태 |
 | `jobs` | 분석 작업 상태 |
 
 ### concept 키
@@ -132,6 +142,30 @@ fly tokens create deploy -x 999999h   # 출력을 GitHub 시크릿 FLY_API_TOKEN
 유휴 시 머신이 suspend로 잠든다. 데모 사이트라 비용을 아끼는 쪽을 택했고,
 재개가 빨라 첫 요청 지연이 크지 않다.
 
+## 퀴즈 루프
+
+```
+개념 선택 → POST /api/quiz (키 헤더)
+  → 분석 스냅샷의 concept 키 → 커밋 고정 코드 최대 5파일 조회
+  → LLM 출제 3문항 (awareness / understanding / reasoning)
+→ 문항마다 POST /api/quiz/[id]/answer
+  first ─틀림→ hint(놓친 포인트) ─틀림→ explanation(설명 후 자기 말로) ─틀림→ unresolved
+  1.0          0.6                     0.3                                0.0
+→ 마지막 문항이 끝나면 점수 v2로 concept 점수 갱신 → 지도에 부채비율
+```
+
+- 키는 브라우저 localStorage에만 두고 `x-crdd-llm-key` / `x-crdd-llm-model` 헤더로
+  요청마다 보낸다. 서버는 그 요청 안에서만 쓰고 DB·로그·에러에 남기지 않는다
+- "모르겠어요"는 LLM을 부르지 않고 출제 때 만든 힌트·설명으로 넘어간다
+- 사용자는 익명 기기 ID 쿠키(`crdd_uid`)로 구분한다. 첫 퀴즈를 만들 때 생긴다
+
+## 테스트
+
+```bash
+bun test          # 순수 함수 — concept 키 배정, 문항 상태 머신, 정답 유출 방지, 파일 선택
+bun run typecheck
+```
+
 ## 설계 원칙 (프로젝트 문서에서 확정)
 
 - 입력은 **public GitHub 레포 링크만**. 업로드 없음
@@ -141,10 +175,11 @@ fly tokens create deploy -x 999999h   # 출력을 GitHub 시크릿 FLY_API_TOKEN
 - 화면에는 **부채비율만** 표기. 이해도 점수는 내부 계산용
 - concept 키는 이름도 communityId도 아닌 **영속 키** — 이름이 바뀌어도, 재분석으로 커뮤니티 번호가 바뀌어도 이력이 끊기지 않게
 
-## 다음 (P2 이후)
+## 다음
 
-1. 퀴즈 루프 — 키 입력 UI, 출제·채점, concept 점수 반영
-2. 로그인 — Auth.js GitHub/Google. 지금 `scores.userId`는 "local" 고정
-3. 변경 감지 — 저장된 해시 스냅샷과 비교해 stale 표시
-4. 작업 복구 — 실행 중 재시작하면 running 상태로 남는다
-5. 데모 남용 방지 — 레이트 리밋, 레포 크기 상한
+1. concept 이름 2차 — 사용자 키로 LLM 다듬기 + 직접 수정 UI (`nameSource` 준비됨)
+2. 데모 스냅샷을 실제 퀴즈 결과로 교체 (지금 `/demo` 부채비율은 예시 값)
+3. 로그인 — Auth.js GitHub/Google. 익명 ID 기록을 계정으로 옮기기
+4. 변경 감지 — 저장된 해시 스냅샷과 비교해 stale 표시
+5. 작업 복구 — 실행 중 재시작하면 running 상태로 남는다
+6. 데모 남용 방지 — 레이트 리밋, 레포 크기 상한, 동시 분석 수 제한
