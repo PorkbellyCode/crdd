@@ -30,7 +30,7 @@ export default function StartQuizButton({
         <Button nativeButton={false} render={<Link href={`/settings?next=${encodeURIComponent(returnTo)}`} />} size="sm" className="w-full">
           API 키를 넣고 퀴즈 풀기
         </Button>
-        <p className="mt-1.5 text-[11px] text-dim">퀴즈 출제와 채점에 본인 Anthropic 키가 필요합니다</p>
+        <p className="mt-1.5 text-[11px] text-dim">퀴즈 출제와 채점에 본인 LLM API 키가 필요합니다</p>
       </div>
     );
   }
