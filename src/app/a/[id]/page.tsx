@@ -71,10 +71,10 @@ export default function AnalysisPage({ params }: { params: Promise<{ id: string 
 
   if (missing) {
     return (
-      <main className="mx-auto max-w-5xl px-5 pt-10 pb-16">
+      <main className="mx-auto max-w-6xl px-5 pt-10 pb-16">
         <h1 className="text-2xl font-bold tracking-tight">작업을 찾을 수 없습니다</h1>
         <p className="mt-2.5 max-w-[60ch] text-sm text-muted-foreground">
-          분석 작업은 아직 서버 메모리에만 있어서 재시작하면 사라집니다. 다시 시도해 주세요.
+          주소가 맞는지 확인하거나 레포를 다시 분석해 주세요.
         </p>
         <Button nativeButton={false} render={<Link href="/" />} variant="secondary" className="mt-5">
           처음으로
@@ -85,8 +85,7 @@ export default function AnalysisPage({ params }: { params: Promise<{ id: string 
 
   if (!job || job.status === "queued" || job.status === "running") {
     return (
-      <main className="mx-auto max-w-5xl px-5 pt-10 pb-16">
-        <p className="eyebrow mb-2.5">Analyzing</p>
+      <main className="mx-auto max-w-6xl px-5 pt-10 pb-16">
         <h1 className="text-2xl font-bold tracking-tight">{job?.repo ?? "레포 분석 중"}</h1>
         <p className="mt-2.5 text-sm text-muted-foreground">
           {STEP_LABEL[job?.step ?? "queued"] ?? job?.step}…
@@ -94,8 +93,8 @@ export default function AnalysisPage({ params }: { params: Promise<{ id: string 
         <div className="mt-4 h-1 w-full max-w-md overflow-hidden rounded-full bg-secondary">
           <i className="block h-full w-1/3 animate-pulse rounded-full bg-primary" />
         </div>
-        <p className="mt-3.5 font-mono text-[11px] text-dim">
-          {Math.round((job?.elapsedMs ?? 0) / 1000)}초 경과 · 소스는 분석이 끝나면 삭제됩니다
+        <p className="mt-3.5 text-xs text-dim">
+          {Math.round((job?.elapsedMs ?? 0) / 1000)}초 지났습니다. 소스는 분석이 끝나면 지웁니다.
         </p>
       </main>
     );
@@ -103,11 +102,11 @@ export default function AnalysisPage({ params }: { params: Promise<{ id: string 
 
   if (job.status === "error") {
     return (
-      <main className="mx-auto max-w-5xl px-5 pt-10 pb-16">
-        <p className="eyebrow mb-2.5">Failed · {STEP_LABEL[job.step] ?? job.step}</p>
+      <main className="mx-auto max-w-6xl px-5 pt-10 pb-16">
         <h1 className="text-2xl font-bold tracking-tight">분석하지 못했습니다</h1>
+        <p className="mt-1 text-xs text-dim">실패한 단계: {STEP_LABEL[job.step] ?? job.step}</p>
         <p className="mt-2.5 max-w-[60ch] text-sm text-muted-foreground">{job.error}</p>
-        <p className="mt-3 font-mono text-[11px] text-dim">
+        <p className="mt-3 text-xs text-dim">
           public 레포인지, 주소가 맞는지 확인해 주세요.
         </p>
         <Button nativeButton={false} render={<Link href="/" />} variant="secondary" className="mt-5">
@@ -133,20 +132,23 @@ export default function AnalysisPage({ params }: { params: Promise<{ id: string 
 
   return (
     <main className="mx-auto max-w-6xl px-5 pt-10 pb-16">
-      <p className="eyebrow mb-2.5">Analyzed · {map.commit}</p>
-      <h1 className="text-[clamp(24px,3.4vw,34px)] font-bold tracking-tight">{map.repo}</h1>
+      <h1 className="flex flex-wrap items-baseline gap-x-3 text-[clamp(22px,3vw,30px)] font-bold tracking-tight">
+        {map.repo}
+        <span className="text-sm font-normal text-dim" title="분석한 커밋">
+          @{map.commit}
+        </span>
+      </h1>
       <p className="mt-2.5 max-w-[64ch] text-sm text-muted-foreground">
         {measured.length === 0
-          ? "구조 분석이 끝났습니다. 아직 퀴즈를 풀지 않아 모든 개념이 콜드 스타트 상태입니다 — 개념을 골라 퀴즈를 풀면 부채비율이 채워집니다."
+          ? "구조 분석이 끝났습니다. 아직 퀴즈를 풀지 않아 모든 개념이 미측정입니다. 지도에서 개념을 골라 퀴즈를 풀면 부채비율이 채워집니다."
           : `${map.concepts.length}개 개념 중 ${measured.length}개를 측정했습니다. 측정하지 않은 개념은 부채 100%로 계산합니다.`}
       </p>
 
       <StatStrip>
-        <Stat value={`${overall}%`} label={`overall 부채비율 · 측정 ${measured.length}/${map.concepts.length}`} />
-        <Stat value={map.counts.nodes} label="nodes" />
-        <Stat value={map.counts.edges} label="edges" />
-        <Stat value={map.concepts.length} label="concepts" />
-        <Stat value={`${(job.elapsedMs / 1000).toFixed(1)}s`} label="분석 시간" />
+        <Stat value={`${overall}%`} label="전체 부채비율" />
+        <Stat value={`${measured.length}/${map.concepts.length}`} label="측정한 개념" />
+        <Stat value={map.counts.nodes} label="심볼" />
+        <Stat value={map.counts.edges} label="연결" />
       </StatStrip>
 
       <UnderstandingMap
@@ -163,12 +165,9 @@ export default function AnalysisPage({ params }: { params: Promise<{ id: string 
         }
       />
 
-      <p className="mt-6 font-mono text-[11px] text-dim">
-        clone {job.timings?.clone}ms · extract {job.timings?.extract}ms · layout{" "}
-        {job.timings?.layout}ms · 파일 {job.fileCount}개 해시 기록 ·{" "}
-        <Link href="/" className="underline underline-offset-2">
-          처음으로
-        </Link>
+      <p className="mt-6 text-xs text-dim">
+        clone {job.timings?.clone}ms, extract {job.timings?.extract}ms, layout {job.timings?.layout}ms.
+        파일 {job.fileCount}개의 해시를 기록했습니다.
       </p>
     </main>
   );

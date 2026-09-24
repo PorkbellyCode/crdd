@@ -1,23 +1,32 @@
 "use client";
 
+import { CircleCheck, CircleDashed, CircleX, TriangleAlert } from "lucide-react";
 import { useMemo, useState } from "react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import type { MapData } from "@/lib/crdd/types";
 
-const DEBT_COLORS = {
-  ok: "#45b08c",
-  warn: "#d8a33f",
-  crit: "#e05a4e",
-  cold: "#57627a",
+/**
+ * 부채비율 단계를 에디터의 진단 심각도로 읽는다 — ok / warning / error, 그리고 미측정.
+ * 색은 테마 토큰(--debt-*)이라 라이트·다크에서 각각 맞는 값이 쓰인다.
+ */
+type Severity = "ok" | "warn" | "crit" | "cold";
+
+const SEVERITY = {
+  ok: { label: "부채 30% 미만", icon: CircleCheck },
+  warn: { label: "30–54%", icon: TriangleAlert },
+  crit: { label: "55% 이상", icon: CircleX },
+  cold: { label: "미측정", icon: CircleDashed },
 } as const;
 
+function severity(debt: number | null): Severity {
+  if (debt === null) return "cold";
+  if (debt < 30) return "ok";
+  if (debt < 55) return "warn";
+  return "crit";
+}
+
 function debtColor(debt: number | null): string {
-  if (debt === null) return DEBT_COLORS.cold;
-  if (debt < 30) return DEBT_COLORS.ok;
-  if (debt < 55) return DEBT_COLORS.warn;
-  return DEBT_COLORS.crit;
+  return `var(--debt-${severity(debt)})`;
 }
 
 export interface UnderstandingMapProps {
@@ -50,7 +59,7 @@ export default function UnderstandingMap({ data, debt, debtIsExample, renderActi
 
   return (
     <div>
-      <div className="mb-3 flex flex-wrap items-center gap-2">
+      <div className="mb-3 flex flex-wrap items-center gap-2" role="group" aria-label="보기 전환">
         <Button
           type="button"
           size="sm"
@@ -58,7 +67,7 @@ export default function UnderstandingMap({ data, debt, debtIsExample, renderActi
           aria-pressed={view === "concept"}
           onClick={() => setView("concept")}
         >
-          개념 보기 · {data.concepts.length}
+          개념 {data.concepts.length}
         </Button>
         <Button
           type="button"
@@ -67,20 +76,18 @@ export default function UnderstandingMap({ data, debt, debtIsExample, renderActi
           aria-pressed={view === "file"}
           onClick={() => setView("file")}
         >
-          파일 보기 · {data.counts.nodes}
+          심볼 {data.counts.nodes}
         </Button>
-        <span className="ml-auto font-mono text-[11px] text-dim">
-          노드를 클릭하면 오른쪽에 상세가 나옵니다
-        </span>
+        <span className="ml-auto text-xs text-dim">개념을 고르면 오른쪽에 파일과 퀴즈가 나옵니다</span>
       </div>
 
-      <div className="grid items-start gap-3.5 lg:grid-cols-[minmax(0,1fr)_280px]">
-        <Card className="overflow-hidden p-0">
+      <div className="grid items-start gap-3.5 lg:grid-cols-[minmax(0,1fr)_300px]">
+        <div className="overflow-hidden rounded-lg border border-border bg-editor">
           <svg
             viewBox="0 0 1000 660"
             role="img"
             aria-label={`${data.repo}의 코드 구조를 ${data.concepts.length}개 개념으로 묶어 보여주는 지도`}
-            className="block h-auto w-full font-sans"
+            className="block h-auto w-full"
           >
             {view === "concept" ? (
               <>
@@ -95,7 +102,7 @@ export default function UnderstandingMap({ data, debt, debtIsExample, renderActi
                       y1={a.y}
                       x2={b.x}
                       y2={b.y}
-                      stroke={on ? "#f2743d" : "#2b3342"}
+                      style={{ stroke: on ? "var(--primary)" : "var(--border)" }}
                       strokeWidth={Math.min(1 + link.w * 0.35, 5)}
                       strokeOpacity={on ? 0.9 : 0.7}
                     />
@@ -110,7 +117,8 @@ export default function UnderstandingMap({ data, debt, debtIsExample, renderActi
                       key={concept.id}
                       role="button"
                       tabIndex={0}
-                      aria-label={`${concept.name} — 심볼 ${concept.nodes}개`}
+                      aria-label={`${concept.name}, 심볼 ${concept.nodes}개, ${value === null ? "미측정" : `부채비율 ${value}%`}`}
+                      aria-pressed={on}
                       className="cursor-pointer outline-none"
                       onClick={() => setSelected(i)}
                       onKeyDown={(event) => {
@@ -124,18 +132,24 @@ export default function UnderstandingMap({ data, debt, debtIsExample, renderActi
                         cx={concept.x}
                         cy={concept.y}
                         r={concept.r}
-                        fill={color}
-                        fillOpacity={on ? 0.3 : 0.14}
-                        stroke={color}
+                        style={{ fill: color, stroke: on ? "var(--primary)" : color }}
+                        fillOpacity={on ? 0.28 : 0.13}
                         strokeWidth={on ? 2.4 : 1.4}
                       />
                       <text
                         x={concept.x}
                         y={concept.y + 4}
                         textAnchor="middle"
-                        fill="#e6e9f0"
+                        // 글자 뒤에 편집기 배경색 테두리를 둘러 선·원 위에서도 읽히게 한다
+                        style={{
+                          fill: "var(--foreground)",
+                          stroke: "var(--editor)",
+                          strokeWidth: 4,
+                          paintOrder: "stroke",
+                          strokeLinejoin: "round",
+                        }}
                         fontSize={12}
-                        fontWeight={600}
+                        fontWeight={700}
                         pointerEvents="none"
                       >
                         {concept.name}
@@ -144,9 +158,13 @@ export default function UnderstandingMap({ data, debt, debtIsExample, renderActi
                         x={concept.x}
                         y={concept.y + concept.r + 14}
                         textAnchor="middle"
-                        fill={color}
-                        fontSize={10}
-                        className="font-mono"
+                        style={{
+                          fill: color,
+                          stroke: "var(--editor)",
+                          strokeWidth: 3,
+                          paintOrder: "stroke",
+                        }}
+                        fontSize={11}
                         pointerEvents="none"
                       >
                         {value === null ? "미측정" : `${value}%`}
@@ -167,7 +185,7 @@ export default function UnderstandingMap({ data, debt, debtIsExample, renderActi
                       y1={a.y}
                       x2={b.x}
                       y2={b.y}
-                      stroke="#242b38"
+                      style={{ stroke: "var(--border)" }}
                       strokeWidth={0.6}
                     />
                   );
@@ -182,7 +200,7 @@ export default function UnderstandingMap({ data, debt, debtIsExample, renderActi
                       cx={node.x}
                       cy={node.y}
                       r={2.6}
-                      fill={debtColor(value)}
+                      style={{ fill: debtColor(value) }}
                       fillOpacity={0.85}
                       className="cursor-pointer"
                       onClick={() => index !== undefined && setSelected(index)}
@@ -194,26 +212,26 @@ export default function UnderstandingMap({ data, debt, debtIsExample, renderActi
               </>
             )}
           </svg>
-        </Card>
+        </div>
 
-        <Card className="min-w-0 gap-0 p-3.5">
+        <aside className="min-w-0 rounded-lg border border-border bg-editor p-4" aria-label="선택한 개념">
           {current ? (
             <>
-              <h2 className="text-base font-semibold tracking-tight">{current.name}</h2>
-              <p className="mb-3 font-mono text-[11px] text-dim">
-                community {current.id} · 심볼 {current.nodes}개 · 파일 {current.files.length}개
+              <h2 className="text-base font-bold tracking-tight">{current.name}</h2>
+              <p className="mb-3 text-xs text-dim">
+                심볼 {current.nodes}개, 파일 {current.files.length}개
               </p>
 
               <div className="flex items-baseline gap-2">
                 <b
-                  className="font-mono text-3xl font-semibold tracking-tight tabular"
+                  className="text-3xl font-bold tracking-tight tabular"
                   style={{ color: debtColor(currentDebt) }}
                 >
                   {currentDebt === null ? "—" : `${currentDebt}%`}
                 </b>
-                <span className="eyebrow">
+                <span className="text-xs text-muted-foreground">
                   {currentDebt === null
-                    ? "콜드 스타트"
+                    ? "아직 퀴즈를 풀지 않음"
                     : debtIsExample
                       ? "부채비율 (예시)"
                       : "부채비율"}
@@ -231,51 +249,47 @@ export default function UnderstandingMap({ data, debt, debtIsExample, renderActi
 
               {renderAction ? <div className="mb-3.5">{renderAction(current)}</div> : null}
 
-              <div className="eyebrow mb-1.5 text-[9.5px]">대표 심볼 (fan-in 순)</div>
+              <h3 className="mb-1.5 text-xs text-muted-foreground">많이 참조되는 심볼</h3>
               <ul className="flex flex-col gap-1">
                 {current.top.map((symbol) => (
                   <li
                     key={`${symbol.file}-${symbol.label}`}
-                    className="flex justify-between gap-2 font-mono text-[11px] text-muted-foreground"
+                    className="flex justify-between gap-2 text-xs text-muted-foreground"
                   >
-                    <b className="font-medium text-foreground">{symbol.label}</b>
-                    <span className="shrink-0 text-dim">fan-in {symbol.fan}</span>
+                    <span className="truncate text-foreground">{symbol.label}</span>
+                    <span className="shrink-0 text-dim tabular" title="이 심볼을 참조하는 곳의 수">
+                      {symbol.fan}회
+                    </span>
                   </li>
                 ))}
               </ul>
 
-              <div className="eyebrow mt-3.5 mb-1.5 text-[9.5px]">
-                파일 {current.files.length}개
-              </div>
-              <ul className="flex flex-col gap-1">
+              <h3 className="mt-4 mb-1.5 text-xs text-muted-foreground">파일</h3>
+              <ul className="flex flex-col gap-0.5">
                 {current.files.map((file) => (
-                  <li key={file} className="font-mono text-[11px] break-all text-muted-foreground">
+                  <li key={file} className="text-xs break-all text-muted-foreground">
                     {file}
                   </li>
                 ))}
               </ul>
             </>
           ) : (
-            <p className="font-mono text-[11px] text-dim">개념을 선택하세요</p>
+            <p className="text-xs text-dim">지도에서 개념을 고르세요</p>
           )}
-        </Card>
+        </aside>
       </div>
 
-      <div className="mt-3.5 flex flex-wrap items-center gap-3 border-t border-border pt-3 font-mono text-[11px] text-dim">
-        {(
-          [
-            ["부채 낮음", DEBT_COLORS.ok],
-            ["주의", DEBT_COLORS.warn],
-            ["높음", DEBT_COLORS.crit],
-            ["콜드 스타트", DEBT_COLORS.cold],
-          ] as const
-        ).map(([label, color]) => (
-          <Badge key={label} variant="outline" className="gap-1.5 font-mono text-[10px]">
-            <span className="size-2 rounded-full" style={{ background: color }} />
-            {label}
-          </Badge>
-        ))}
-        <span>원 크기 = 포함 심볼 수 · 선 굵기 = 개념 간 연결 수</span>
+      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
+        {(Object.keys(SEVERITY) as Severity[]).map((key) => {
+          const Icon = SEVERITY[key].icon;
+          return (
+            <span key={key} className="flex items-center gap-1.5">
+              <Icon className="size-3.5" style={{ color: `var(--debt-${key})` }} aria-hidden />
+              {SEVERITY[key].label}
+            </span>
+          );
+        })}
+        <span className="text-dim">원 크기는 심볼 수, 선 굵기는 개념 사이 연결 수</span>
       </div>
     </div>
   );

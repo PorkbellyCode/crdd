@@ -30,7 +30,7 @@ export default function StartQuizButton({
         <Button nativeButton={false} render={<Link href={`/settings?next=${encodeURIComponent(returnTo)}`} />} size="sm" className="w-full">
           API 키를 넣고 퀴즈 풀기
         </Button>
-        <p className="mt-1.5 font-mono text-[10px] text-dim">퀴즈 출제·채점에 본인 Anthropic 키가 필요합니다</p>
+        <p className="mt-1.5 text-[11px] text-dim">퀴즈 출제와 채점에 본인 Anthropic 키가 필요합니다</p>
       </div>
     );
   }
@@ -63,10 +63,10 @@ export default function StartQuizButton({
       <Button type="button" size="sm" className="w-full" disabled={pending} onClick={start}>
         {pending ? "코드를 읽고 문항 만드는 중…" : "이 개념 퀴즈 풀기"}
       </Button>
-      <p className="mt-1.5 font-mono text-[10px] text-dim">
-        {pending ? "보통 20~40초 걸립니다" : `3문항 · ${settings.model}`}
+      <p className="mt-1.5 text-[11px] text-dim">
+        {pending ? "보통 20~40초 걸립니다" : `3문항, ${settings.model}`}
       </p>
-      {error ? <p className="mt-1.5 font-mono text-[11px] text-destructive">{error}</p> : null}
+      {error ? <p className="mt-1.5 text-xs text-destructive">{error}</p> : null}
     </div>
   );
 }

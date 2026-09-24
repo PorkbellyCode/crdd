@@ -24,6 +24,12 @@ const OUTCOME_COLOR: Record<AnswerOutcome, string> = {
   unresolved: "var(--debt-crit)",
 };
 
+const LEVEL_LABEL = {
+  awareness: "역할을 아는가",
+  understanding: "동작을 설명할 수 있는가",
+  reasoning: "설계 이유를 설명할 수 있는가",
+} as const;
+
 const STAGE_PROMPT = {
   first: "답변",
   hint: "힌트를 보고 다시 답해 보세요",
@@ -32,12 +38,22 @@ const STAGE_PROMPT = {
 
 function CodeExcerpt({ excerpt }: { excerpt: QuizView["questions"][number]["codeExcerpt"] }) {
   return (
-    <figure className="mt-3 overflow-hidden rounded-md border border-border">
-      <figcaption className="border-b border-border bg-secondary px-3 py-1.5 font-mono text-[10.5px] text-muted-foreground">
-        {excerpt.file} · L{excerpt.startLine}–{excerpt.endLine}
+    <figure className="mt-3 overflow-hidden rounded-lg border border-border">
+      <figcaption className="flex justify-between border-b border-border bg-chrome px-3 py-1.5 text-xs">
+        <span className="text-foreground">{excerpt.file}</span>
+        <span className="text-dim">
+          L{excerpt.startLine}–{excerpt.endLine}
+        </span>
       </figcaption>
-      <pre className="max-h-96 overflow-auto bg-background p-3 font-mono text-[12px] leading-relaxed">
-        <code>{excerpt.code}</code>
+      <pre className="max-h-96 overflow-auto bg-editor text-[12.5px] leading-[1.7]">
+        {excerpt.code.split("\n").map((line, i) => (
+          <div key={i} className="flex">
+            <span className="w-11 shrink-0 bg-gutter pr-3 text-right text-dim select-none">
+              {excerpt.startLine + i}
+            </span>
+            <code className="pr-4 pl-3">{line || " "}</code>
+          </div>
+        ))}
       </pre>
     </figure>
   );
@@ -47,7 +63,7 @@ function Note({ title, children, tone }: { title: string; children: React.ReactN
   const color = tone === "hint" ? "var(--debt-warn)" : tone === "explain" ? "var(--primary)" : "var(--dim)";
   return (
     <div className="mt-3 rounded-md border-l-2 bg-secondary/60 px-3 py-2" style={{ borderColor: color }}>
-      <div className="eyebrow mb-1 text-[9.5px]" style={{ color }}>
+      <div className="mb-1 text-xs font-bold" style={{ color }}>
         {title}
       </div>
       <div className="text-[13px] leading-relaxed whitespace-pre-wrap">{children}</div>
@@ -99,17 +115,20 @@ export default function QuizRunner({ initial, returnTo }: { initial: QuizView; r
         const lastAttempt = question.attempts.at(-1);
         return (
           <Card key={i} className="gap-0 p-4">
-            <p className="eyebrow">
-              Quiz — {quiz.conceptName} ({question.level}) · {i + 1}/{quiz.total}
+            <p className="flex flex-wrap gap-x-3 text-xs text-dim">
+              <span>
+                문항 {i + 1}/{quiz.total}
+              </span>
+              <span>{LEVEL_LABEL[question.level]}</span>
             </p>
             <h2 className="mt-2 text-[15px] leading-relaxed font-semibold">{question.question}</h2>
             <CodeExcerpt excerpt={question.codeExcerpt} />
 
             {question.attempts.map((attempt, n) => (
               <div key={n} className="mt-3">
-                <p className="font-mono text-[10.5px] text-dim">
+                <p className="text-xs text-dim">
                   내 답변 {n + 1}
-                  {attempt.passed ? " · 통과" : ""}
+                  {attempt.passed ? ", 통과" : ""}
                 </p>
                 <p className="mt-1 text-[13px] whitespace-pre-wrap text-muted-foreground">
                   {attempt.answer || "(모르겠어요)"}
@@ -135,14 +154,16 @@ export default function QuizRunner({ initial, returnTo }: { initial: QuizView; r
 
             {question.outcome ? (
               <div className="mt-3 flex flex-wrap items-center gap-2">
-                <Badge variant="outline" className="gap-1.5 font-mono text-[10px]">
+                <Badge variant="outline" className="gap-1.5 text-[11px]">
                   <span className="size-2 rounded-full" style={{ background: OUTCOME_COLOR[question.outcome] }} />
                   {OUTCOME_LABEL[question.outcome]}
                 </Badge>
                 {question.rubric ? (
-                  <span className="font-mono text-[10.5px] text-dim">
-                    핵심 포인트: {question.rubric.join(" · ")}
-                  </span>
+                  <ul className="mt-1 w-full list-disc pl-5 text-xs text-muted-foreground">
+                    {question.rubric.map((point) => (
+                      <li key={point}>{point}</li>
+                    ))}
+                  </ul>
                 ) : null}
               </div>
             ) : null}
@@ -155,9 +176,9 @@ export default function QuizRunner({ initial, returnTo }: { initial: QuizView; r
                   void submit(false);
                 }}
               >
-                <label htmlFor="answer" className="eyebrow mb-1.5 block text-[10px]">
+                <label htmlFor="answer" className="mb-1.5 block text-xs text-muted-foreground">
                   {STAGE_PROMPT[question.stage]}
-                  {lastAttempt ? ` · ${question.attempts.length + 1}번째 시도` : ""}
+                  {lastAttempt ? ` (${question.attempts.length + 1}번째 시도)` : ""}
                 </label>
                 <Textarea
                   id="answer"
@@ -174,11 +195,11 @@ export default function QuizRunner({ initial, returnTo }: { initial: QuizView; r
                   <Button type="button" variant="secondary" disabled={pending !== null} onClick={() => void submit(true)}>
                     {pending === "giveup" ? "넘어가는 중…" : "모르겠어요"}
                   </Button>
-                  <span className="ml-auto font-mono text-[10px] text-dim">
-                    첫 시도 1.0 · 힌트 후 0.6 · 설명 후 0.3
+                  <span className="ml-auto text-[11px] text-dim">
+                    배점: 첫 시도 1.0, 힌트 후 0.6, 설명 후 0.3
                   </span>
                 </div>
-                {error ? <p className="mt-2 font-mono text-[11px] text-destructive">{error}</p> : null}
+                {error ? <p className="mt-2 text-xs text-destructive">{error}</p> : null}
               </form>
             ) : null}
           </Card>
@@ -187,20 +208,19 @@ export default function QuizRunner({ initial, returnTo }: { initial: QuizView; r
 
       {quiz.status === "done" ? (
         <Card className="gap-2 p-4">
-          <p className="eyebrow">Done</p>
           <h2 className="text-base font-semibold">퀴즈를 마쳤습니다</h2>
           {quiz.result ? (
-            <div className="flex items-baseline gap-2 font-mono">
+            <div className="flex items-baseline gap-2">
               <span className="text-lg text-muted-foreground">
                 {quiz.result.debtBefore === null ? "미측정" : `${quiz.result.debtBefore}%`}
               </span>
-              <span className="text-dim">→</span>
-              <b className="text-3xl font-semibold tracking-tight tabular">{quiz.result.debtAfter}%</b>
-              <span className="eyebrow">부채비율</span>
+              <span className="text-dim" aria-label="에서">&gt;</span>
+              <b className="text-3xl font-bold tracking-tight tabular">{quiz.result.debtAfter}%</b>
+              <span className="text-xs text-muted-foreground">부채비율</span>
             </div>
           ) : null}
-          <p className="font-mono text-[11px] text-muted-foreground">
-            {quiz.questions.map((q) => (q.outcome ? OUTCOME_LABEL[q.outcome] : "—")).join(" · ")}
+          <p className="text-xs text-muted-foreground">
+            {quiz.questions.map((q) => (q.outcome ? OUTCOME_LABEL[q.outcome] : "—")).join(", ")}
           </p>
           <p className="text-xs leading-relaxed text-dim">
             점수는 이 개념에서 푼 모든 퀴즈를 합산하고, 확인되지 않은 가상의 문항 4개를 얹어

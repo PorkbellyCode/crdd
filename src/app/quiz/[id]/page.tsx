@@ -28,11 +28,12 @@ function QuizPageInner({ id }: { id: string }) {
   }, [id]);
 
   return (
-    <main className="mx-auto max-w-3xl px-5 pt-10 pb-16">
+    <main className="mx-auto max-w-6xl px-5 pt-10 pb-16">
+      <div className="max-w-3xl">
       {error ? (
         <>
           <h1 className="text-2xl font-bold tracking-tight">{error}</h1>
-          <p className="mt-4 font-mono text-[11px] text-dim">
+          <p className="mt-4 text-xs text-dim">
             <Link href={returnTo ?? "/"} className="underline underline-offset-2">
               돌아가기
             </Link>
@@ -40,13 +41,16 @@ function QuizPageInner({ id }: { id: string }) {
         </>
       ) : quiz ? (
         <>
-          <p className="eyebrow mb-2.5">Quiz · {quiz.commit}</p>
-          <h1 className="mb-5 text-2xl font-bold tracking-tight">{quiz.conceptName}</h1>
+          <h1 className="mb-5 flex flex-wrap items-baseline gap-x-3 text-2xl font-bold tracking-tight">
+            {quiz.conceptName}
+            <span className="text-sm font-normal text-dim">@{quiz.commit}</span>
+          </h1>
           <QuizRunner initial={quiz} returnTo={returnTo} />
         </>
       ) : (
-        <p className="font-mono text-[11px] text-dim">불러오는 중…</p>
+        <p className="text-xs text-dim">불러오는 중…</p>
       )}
+      </div>
     </main>
   );
 }

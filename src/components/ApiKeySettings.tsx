@@ -100,10 +100,10 @@ export default function ApiKeySettings() {
       </div>
 
       {saved ? (
-        <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-secondary px-3 py-2 font-mono text-[11px]">
+        <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-secondary px-3 py-2 text-xs">
           <span className="text-muted-foreground">저장됨</span>
           <b className="font-medium">{maskKey(saved.apiKey)}</b>
-          <span className="text-dim">· {saved.model}</span>
+          <span className="text-dim">{saved.model}</span>
           <Button type="button" size="sm" variant="ghost" className="ml-auto" onClick={remove}>
             지우기
           </Button>
@@ -126,7 +126,7 @@ export default function ApiKeySettings() {
           onChange={(event) => setApiKey(event.target.value)}
           placeholder={saved ? "새 키로 바꾸려면 입력 (비우면 저장된 키로 모델만 다시 불러옴)" : "sk-ant-…"}
           aria-label="Anthropic API 키"
-          className="min-w-0 flex-1 basis-64 font-mono"
+          className="h-9 min-w-0 flex-1 basis-64 bg-editor"
         />
         <Button
           type="submit"
@@ -139,14 +139,14 @@ export default function ApiKeySettings() {
 
       {models ? (
         <div className="flex flex-wrap items-center gap-2">
-          <label htmlFor="model" className="eyebrow">
+          <label htmlFor="model" className="text-xs text-muted-foreground">
             모델
           </label>
           <select
             id="model"
             value={model}
             onChange={(event) => setModel(event.target.value)}
-            className="h-8 min-w-0 flex-1 rounded-md border border-input bg-background px-2 font-mono text-xs"
+            className="h-8 min-w-0 flex-1 rounded-md border border-input bg-editor px-2 text-xs"
           >
             {models.map((m) => (
               <option key={m.id} value={m.id}>
@@ -164,8 +164,8 @@ export default function ApiKeySettings() {
         <p
           className={
             status === "error"
-              ? "font-mono text-[11px] text-destructive"
-              : "font-mono text-[11px] text-muted-foreground"
+              ? "text-xs text-destructive"
+              : "text-xs text-muted-foreground"
           }
         >
           {message}

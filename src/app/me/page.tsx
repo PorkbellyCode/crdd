@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card";
 import { getUserProjects } from "@/db/repo";
 import { overallDebtRatio } from "@/lib/crdd/score";
 
-export const metadata = { title: "내 프로젝트 · CRDD" };
+export const metadata = { title: "내 프로젝트 | CRDD" };
 
 function when(sec: number): string {
   return new Date(sec * 1000).toLocaleString("ko-KR", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Seoul" });
@@ -17,8 +17,7 @@ export default async function MyProjectsPage() {
 
   if (!userId) {
     return (
-      <main className="mx-auto max-w-5xl px-5 pt-10 pb-16">
-        <p className="eyebrow mb-2.5">My projects</p>
+      <main className="mx-auto max-w-6xl px-5 pt-10 pb-16">
         <h1 className="text-2xl font-bold tracking-tight">로그인이 필요합니다</h1>
         <p className="mt-2.5 max-w-[60ch] text-sm text-muted-foreground">
           로그인하면 어느 브라우저에서든 내 프로젝트와 부채비율을 이어서 볼 수 있습니다.
@@ -42,8 +41,7 @@ export default async function MyProjectsPage() {
   const projects = await getUserProjects(userId);
 
   return (
-    <main className="mx-auto max-w-5xl px-5 pt-10 pb-16">
-      <p className="eyebrow mb-2.5">My projects</p>
+    <main className="mx-auto max-w-6xl px-5 pt-10 pb-16">
       <h1 className="text-2xl font-bold tracking-tight">내 프로젝트</h1>
 
       {projects.length === 0 ? (
@@ -68,24 +66,24 @@ export default async function MyProjectsPage() {
               <Card key={project.analysisId} className="gap-0 p-4">
                 <div className="flex flex-wrap items-baseline gap-2">
                   <h2 className="text-base font-semibold tracking-tight">{project.repo}</h2>
-                  <span className="font-mono text-[11px] text-dim">@ {project.commit}</span>
+                  <span className="text-xs text-dim">@{project.commit}</span>
                   {project.jobId ? (
-                    <Link href={`/a/${project.jobId}`} className="ml-auto font-mono text-[11px] underline underline-offset-2">
-                      지도 열기 →
+                    <Link href={`/a/${project.jobId}`} className="ml-auto text-xs text-primary underline underline-offset-4">
+                      지도 열기
                     </Link>
                   ) : null}
                 </div>
 
                 <StatStrip className="my-3">
-                  <Stat value={`${overall}%`} label="overall 부채비율" />
+                  <Stat value={`${overall}%`} label="전체 부채비율" />
                   <Stat value={`${measured.length}/${project.concepts.length}`} label="측정한 개념" />
                   <Stat value={project.recent.length} label="최근 퀴즈" />
                 </StatStrip>
 
-                <div className="eyebrow mb-1.5 text-[9.5px]">최근 퀴즈</div>
+                <h3 className="mb-1.5 text-xs text-muted-foreground">최근 퀴즈</h3>
                 <ul className="flex flex-col gap-1">
                   {project.recent.map((quiz) => (
-                    <li key={quiz.id} className="flex flex-wrap gap-x-3 font-mono text-[11px] text-muted-foreground">
+                    <li key={quiz.id} className="flex flex-wrap gap-x-3 text-xs text-muted-foreground">
                       <Link href={`/quiz/${quiz.id}${project.jobId ? `?from=/a/${project.jobId}` : ""}`} className="text-foreground underline-offset-2 hover:underline">
                         {quiz.conceptName}
                       </Link>
