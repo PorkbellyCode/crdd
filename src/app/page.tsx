@@ -1,24 +1,20 @@
 import Link from "next/link";
 import { auth, signIn } from "@/auth";
 import AnalyzeForm from "@/components/AnalyzeForm";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import CoverageSnippet from "@/components/CoverageSnippet";
 
 const STEPS = [
   {
-    n: "01",
-    title: "레포 연결",
-    body: "public 레포의 구조와 의존성을 읽어 Knowledge Graph를 만듭니다.",
+    title: "레포를 연결합니다",
+    body: "public 레포의 import·호출 관계를 읽어 코드를 개념 단위로 묶습니다. LLM은 쓰지 않습니다.",
   },
   {
-    n: "02",
-    title: "프로젝트 퀴즈",
-    body: "그래프·코드·커밋 메시지를 근거로 이 프로젝트에 대해 질문합니다.",
+    title: "그 코드로 질문합니다",
+    body: "개념 하나를 고르면 실제 코드를 근거로 세 문항을 냅니다. 틀리면 힌트, 그다음 설명이 열립니다.",
   },
   {
-    n: "03",
-    title: "부채 탕감",
-    body: "설명하지 못한 영역을 학습하고 다시 검증합니다.",
+    title: "설명하지 못한 곳이 부채로 남습니다",
+    body: "첫 시도 정답과 설명을 보고 맞힌 답은 점수가 다릅니다. 지도에서 부채가 높은 곳부터 갚아 나갑니다.",
   },
 ];
 
@@ -30,35 +26,50 @@ export default async function Home() {
   }
 
   return (
-    <main className="mx-auto max-w-5xl px-5 pt-10 pb-16">
-      <p className="eyebrow mb-2.5">CRDD · Code Recognition Debt Deductor</p>
-      <h1 className="text-[clamp(24px,3.4vw,34px)] leading-tight font-bold tracking-tight text-balance">
-        AI가 짠 코드,
-        <br />
-        당신은 설명할 수 있나요?
-      </h1>
-      <p className="mt-2.5 max-w-[64ch] text-sm text-muted-foreground">
-        레포를 연결하면 구조를 그래프로 그리고, 프로젝트 자체를 근거로 질문합니다. 설명하지
-        못한 영역이 당신의 인지부채입니다.
-      </p>
+    <main className="mx-auto max-w-6xl px-5 pt-12 pb-20">
+      <section className="grid items-center gap-10 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
+        <div>
+          <h1 className="text-[clamp(28px,4.2vw,40px)] leading-[1.2] font-bold tracking-[-0.02em] text-balance">
+            AI가 짠 코드,
+            <br />
+            설명할 수 있나요?
+          </h1>
+          <p className="mt-4 max-w-[46ch] text-muted-foreground">
+            테스트 커버리지가 실행된 줄을 보여주듯, CRDD는 내가 설명할 수 있는 코드를 보여줍니다.
+            레포를 연결하고 퀴즈를 풀면 설명하지 못한 부분이 부채비율로 드러납니다.
+          </p>
+          <AnalyzeForm signedIn={Boolean(session?.user?.id)} signInAction={signInToAnalyze} />
+          <p className="mt-4 text-xs text-dim">
+            먼저 둘러보려면{" "}
+            <Link href="/demo" className="text-primary underline underline-offset-4">
+              porklog 데모
+            </Link>
+            를 열어 보세요. 로그인 없이 볼 수 있습니다.
+          </p>
+        </div>
 
-      <AnalyzeForm signedIn={Boolean(session?.user?.id)} signInAction={signInToAnalyze} />
+        <CoverageSnippet />
+      </section>
 
-      <div className="mt-8 grid gap-3 sm:grid-cols-3">
-        {STEPS.map((step) => (
-          <Card key={step.n} className="gap-1.5 p-4">
-            <span className="font-mono text-[11px] text-primary">{step.n}</span>
-            <b className="text-sm font-semibold">{step.title}</b>
-            <p className="text-xs leading-relaxed text-dim">{step.body}</p>
-          </Card>
-        ))}
-      </div>
-
-      <p className="mt-7">
-        <Button nativeButton={false} render={<Link href="/demo" />} variant="secondary">
-          porklog 데모 보기 →
-        </Button>
-      </p>
+      <section className="mt-20 max-w-3xl" aria-labelledby="how">
+        <h2 id="how" className="text-base font-bold">
+          동작 방식
+        </h2>
+        <ol className="mt-4 border-l border-border">
+          {STEPS.map((step, i) => (
+            <li key={step.title} className="relative pb-6 pl-6 last:pb-0">
+              <span
+                className="absolute top-0 -left-[11px] grid size-[21px] place-items-center rounded-full border border-border bg-background text-[11px] text-muted-foreground"
+                aria-hidden
+              >
+                {i + 1}
+              </span>
+              <h3 className="font-bold">{step.title}</h3>
+              <p className="mt-1 max-w-[64ch] text-muted-foreground">{step.body}</p>
+            </li>
+          ))}
+        </ol>
+      </section>
     </main>
   );
 }

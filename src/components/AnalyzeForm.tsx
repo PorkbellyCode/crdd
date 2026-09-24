@@ -37,12 +37,12 @@ export default function AnalyzeForm({ signedIn, signInAction }: { signedIn: bool
   if (!signedIn) {
     return (
       <form action={signInAction} className="mt-6 max-w-2xl">
-        <div className="flex flex-wrap items-center gap-3">
-          <Button type="submit">GitHub로 로그인하고 분석하기</Button>
-          <span className="font-mono text-[11px] text-dim">
-            레포 분석은 로그인이 필요합니다 · 레포 권한은 요청하지 않습니다
-          </span>
-        </div>
+        <Button type="submit" className="h-9 px-4">
+          GitHub로 로그인하고 분석하기
+        </Button>
+        <p className="mt-2.5 text-xs text-dim">
+          레포 분석은 로그인한 뒤에 할 수 있습니다. GitHub 레포 권한은 요청하지 않습니다.
+        </p>
       </form>
     );
   }
@@ -58,15 +58,15 @@ export default function AnalyzeForm({ signedIn, signInAction }: { signedIn: bool
           placeholder="github.com/owner/repo"
           aria-label="분석할 public GitHub 레포 주소"
           disabled={pending}
-          className="min-w-0 flex-1 basis-64 font-mono"
+          className="h-9 min-w-0 flex-1 basis-64 bg-editor"
         />
-        <Button type="submit" disabled={pending || repo.trim() === ""}>
+        <Button type="submit" className="h-9 px-4" disabled={pending || repo.trim() === ""}>
           {pending ? "시작하는 중…" : "분석 시작"}
         </Button>
       </div>
-      {error ? <p className="mt-2 font-mono text-[11px] text-destructive">{error}</p> : null}
-      <p className="mt-2.5 font-mono text-[11px] text-dim">
-        public 레포만 지원합니다 · 소스는 분석 직후 삭제하고 그래프와 파일 해시만 보관합니다
+      {error ? <p className="mt-2 text-xs text-destructive">{error}</p> : null}
+      <p className="mt-2.5 text-xs text-dim">
+        public 레포만 받습니다. 소스는 분석이 끝나면 지우고 구조 그래프와 파일 해시만 남깁니다.
       </p>
     </form>
   );
