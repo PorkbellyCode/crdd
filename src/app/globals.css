@@ -2,17 +2,24 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
-@custom-variant dark (&:is(.dark *));
+/* 테마는 <html data-theme="light|dark">로 정한다 (layout.tsx의 인라인 스크립트가 첫 페인트 전에 붙인다) */
+@custom-variant dark (&:is([data-theme="dark"] *));
 
 /*
- * CRDD는 다크 단일 테마다. shadcn 토큰은 유지하되 값만 우리 팔레트로 덮고,
- * 부채비율 표시용 의미 색(ok/warn/crit/cold)을 추가한다. 이 네 가지는 브랜드
- * 강조색(accent)과 별개다 — 상태를 나타내는 색이라 섞으면 신호가 죽는다.
+ * CRDD 디자인 토큰
+ *
+ * 컨셉: "이해도 커버리지". 개발자가 매일 보는 에디터의 시각 언어를 빌려온다.
+ *   - 거터의 커버리지 막대: 이해한 코드 / 힌트 후 / 설명 못 함 / 미측정
+ *   - 진단 심각도(ok / warning / error): 부채비율 단계
+ *   - 상태 바: 계정·키·테마 같은 "지금 상태"
+ *
+ * 부채 색(debt-*)은 진단 색이고, 강조색(primary, 커서·선택의 파랑)과 섞지 않는다.
+ * 상태 색과 강조 색이 섞이면 신호가 죽는다.
  */
 @theme inline {
-  --font-sans: var(--font-plex-sans);
-  --font-mono: var(--font-plex-mono);
-  --font-heading: var(--font-plex-sans);
+  --font-sans: var(--font-code), var(--font-hangul), ui-monospace, monospace;
+  --font-mono: var(--font-code), var(--font-hangul), ui-monospace, monospace;
+  --font-heading: var(--font-code), var(--font-hangul), ui-monospace, monospace;
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -33,12 +40,16 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
 
-  /* 부채비율 스케일 */
   --color-debt-ok: var(--debt-ok);
   --color-debt-warn: var(--debt-warn);
   --color-debt-crit: var(--debt-crit);
   --color-debt-cold: var(--debt-cold);
 
+  --color-editor: var(--editor);
+  --color-gutter: var(--gutter);
+  --color-chrome: var(--chrome);
+  --color-statusbar: var(--statusbar);
+  --color-statusbar-foreground: var(--statusbar-foreground);
   --color-surface-2: var(--surface-2);
   --color-dim: var(--dim);
 
@@ -48,44 +59,104 @@
   --radius-xl: calc(var(--radius) * 1.4);
 }
 
-:root,
-.dark {
-  --background: #0c0e14;
-  --foreground: #e6e9f0;
+/* 라이트 — 낮의 에디터. 종이색이 아니라 차가운 흰색 */
+:root {
+  --background: #f5f6f8;
+  --foreground: #1c2028;
 
-  --card: #141822;
-  --card-foreground: #e6e9f0;
-  --popover: #141822;
-  --popover-foreground: #e6e9f0;
+  --editor: #ffffff;
+  --gutter: #f0f2f5;
+  --chrome: #eceef2;
 
-  /* 강조색 — CTA와 선택 상태에만 쓴다 */
-  --primary: #f2743d;
-  --primary-foreground: #17100c;
+  --card: #ffffff;
+  --card-foreground: #1c2028;
+  --popover: #ffffff;
+  --popover-foreground: #1c2028;
 
-  --secondary: #1b2029;
-  --secondary-foreground: #e6e9f0;
+  /* 커서·선택의 파랑 — CTA와 선택 상태에만 쓴다 */
+  --primary: #2358c4;
+  --primary-foreground: #ffffff;
 
-  --muted: #1b2029;
-  --muted-foreground: #8b95aa;
+  --secondary: #e8ebf0;
+  --secondary-foreground: #1c2028;
+  --muted: #e8ebf0;
+  --muted-foreground: #586172;
+  --accent: #e3e9f6;
+  --accent-foreground: #1c2028;
 
-  --accent: #1b2029;
-  --accent-foreground: #e6e9f0;
+  --destructive: #c62f3b;
 
-  --destructive: #e05a4e;
+  --border: #d9dde4;
+  --input: #cdd2db;
+  --ring: #2358c4;
 
-  --border: #262d3a;
-  --input: #262d3a;
-  --ring: #f2743d;
+  --statusbar: #2358c4;
+  --statusbar-foreground: #ffffff;
 
-  --surface-2: #1b2029;
-  --dim: #5e6879;
+  --surface-2: #eef0f4;
+  --dim: #6b7384;
 
-  --debt-ok: #45b08c;
-  --debt-warn: #d8a33f;
-  --debt-crit: #e05a4e;
-  --debt-cold: #57627a;
+  /* 구문 강조 (히어로의 코드 조각) */
+  --syn-keyword: #8a3ab9;
+  --syn-string: #0f7a52;
+  --syn-comment: #7b8494;
+  --syn-fn: #2358c4;
+
+  /* 진단 색 */
+  --debt-ok: #1f8a58;
+  --debt-warn: #a86d00;
+  --debt-crit: #c62f3b;
+  --debt-cold: #8c95a5;
 
   --radius: 0.375rem;
+  color-scheme: light;
+}
+
+/* 다크 — 밤의 에디터. 틴트 없는 순흑이 아니라 푸른 기가 도는 회색 */
+[data-theme="dark"] {
+  --background: #14161b;
+  --foreground: #d9dde5;
+
+  --editor: #1b1e25;
+  --gutter: #171a20;
+  --chrome: #111318;
+
+  --card: #1b1e25;
+  --card-foreground: #d9dde5;
+  --popover: #1b1e25;
+  --popover-foreground: #d9dde5;
+
+  --primary: #5c9bff;
+  --primary-foreground: #0d1422;
+
+  --secondary: #252932;
+  --secondary-foreground: #d9dde5;
+  --muted: #252932;
+  --muted-foreground: #939bab;
+  --accent: #22304a;
+  --accent-foreground: #d9dde5;
+
+  --destructive: #f2707a;
+
+  --border: #2b303a;
+  --input: #353b47;
+  --ring: #5c9bff;
+
+  --statusbar: #1f4fa8;
+  --statusbar-foreground: #eef3ff;
+
+  --surface-2: #20242c;
+  --dim: #7a8292;
+
+  --syn-keyword: #c792ea;
+  --syn-string: #9ccf8a;
+  --syn-comment: #6c7587;
+  --syn-fn: #7fb0ff;
+
+  --debt-ok: #5cc592;
+  --debt-warn: #e2b54a;
+  --debt-crit: #f2707a;
+  --debt-cold: #5f6878;
 
   color-scheme: dark;
 }
@@ -95,17 +166,35 @@
     @apply border-border outline-ring/50;
   }
 
+  html {
+    @apply font-sans;
+    /* 고정폭 글꼴은 같은 크기에서 더 크게 읽힌다 — 본문 기준을 14px로 둔다 */
+    font-size: 14px;
+    font-feature-settings: "calt" 1, "liga" 1;
+  }
+
   body {
     @apply bg-background text-foreground antialiased;
   }
 
-  html {
-    @apply font-sans;
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
   }
 }
 
+/* 작은 설명 라벨 — 대문자·자간 벌리기 없이, 흐린 문장체로 */
 @utility eyebrow {
-  @apply font-mono text-[11px] uppercase tracking-[0.16em] text-dim;
+  @apply text-xs text-dim;
 }
 
 @utility tabular {

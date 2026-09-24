@@ -1,34 +1,43 @@
 import type { Metadata } from "next";
-import { IBM_Plex_Mono, IBM_Plex_Sans_KR } from "next/font/google";
+import { JetBrains_Mono, Nanum_Gothic_Coding } from "next/font/google";
 import "./globals.css";
-import SiteHeader from "@/components/SiteHeader";
+import StatusBar from "@/components/StatusBar";
+import TabBar from "@/components/TabBar";
+import { auth } from "@/auth";
+import { THEME_SCRIPT } from "@/lib/client/theme";
 import { cn } from "@/lib/utils";
 
-const plexSans = IBM_Plex_Sans_KR({
+// 라틴 문자와 숫자는 JetBrains Mono, 한글은 나눔고딕코딩 — 한국 개발자가 에디터에 흔히 쓰는 조합
+const code = JetBrains_Mono({
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-  variable: "--font-plex-sans",
+  weight: ["400", "500", "700"],
+  variable: "--font-code",
 });
 
-const plexMono = IBM_Plex_Mono({
+const hangul = Nanum_Gothic_Coding({
   subsets: ["latin"],
-  weight: ["400", "500", "600"],
-  variable: "--font-plex-mono",
+  weight: ["400", "700"],
+  variable: "--font-hangul",
+  preload: false,
 });
 
 export const metadata: Metadata = {
   title: "CRDD — Understand the code you build with AI",
-  description:
-    "AI가 만든 코드를 얼마나 이해하고 있는지 프로젝트 구조 위에 부채비율로 보여주는 도구",
+  description: "AI와 함께 만든 코드를 얼마나 설명할 수 있는지, 프로젝트 구조 위에 부채비율로 보여줍니다",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const session = await auth();
   return (
-    // 다크 단일 테마 — 토큰 값 자체가 다크라 .dark는 shadcn 변형을 위해 붙인다
-    <html lang="ko" className={cn("dark", plexSans.variable, plexMono.variable)}>
-      <body className="font-sans leading-relaxed">
-        <SiteHeader />
+    // data-theme은 THEME_SCRIPT가 첫 페인트 전에 붙인다 — 서버 HTML과 달라지므로 경고를 끈다
+    <html lang="ko" suppressHydrationWarning className={cn(code.variable, hangul.variable)}>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+      </head>
+      <body className="min-h-dvh pb-7 leading-relaxed">
+        <TabBar signedIn={Boolean(session?.user?.id)} />
         {children}
+        <StatusBar />
       </body>
     </html>
   );
