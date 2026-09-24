@@ -3,7 +3,7 @@
  */
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "./index";
-import { analyses, concepts, jobs, projects, scores } from "./schema";
+import { analyses, concepts, jobs, projects, quizzes, scores } from "./schema";
 import type { AnalysisResult } from "@/lib/analysis/analyze";
 import { assignConceptKeys } from "@/lib/crdd/identity";
 import type { MapData } from "@/lib/crdd/types";
@@ -200,4 +200,66 @@ export async function updateJob(
 export async function getJobRow(id: string) {
   const rows = await db.select().from(jobs).where(eq(jobs.id, id)).limit(1);
   return rows[0] ?? null;
+}
+
+// --- 내 프로젝트 ---
+
+/**
+ * 사용자가 퀴즈를 본 적 있는 프로젝트들 — 최신 분석 기준 부채비율과 함께.
+ * 분석 화면(/a/[jobId])은 작업 id로 열리므로, 그 분석을 만든 최근 작업 id도 찾는다.
+ */
+export async function getUserProjects(userId: string) {
+  const touched = await db
+    .selectDistinct({ projectId: quizzes.projectId })
+    .from(quizzes)
+    .where(eq(quizzes.userId, userId));
+
+  const result = [];
+  for (const { projectId } of touched) {
+    const [project] = await db.select().from(projects).where(eq(projects.id, projectId)).limit(1);
+    const [latest] = await db
+      .select()
+      .from(analyses)
+      .where(eq(analyses.projectId, projectId))
+      .orderBy(desc(analyses.createdAt))
+      .limit(1);
+    if (!project || !latest) continue;
+
+    const analysis = parseAnalysisRow(latest);
+    const [job] = await db
+      .select({ id: jobs.id })
+      .from(jobs)
+      .where(and(eq(jobs.analysisId, latest.id), eq(jobs.status, "done")))
+      .orderBy(desc(jobs.createdAt))
+      .limit(1);
+
+    const debt = await getDebtForAnalysis(latest.id, userId);
+    const recent = await db
+      .select({
+        id: quizzes.id,
+        conceptName: quizzes.conceptName,
+        status: quizzes.status,
+        resultJson: quizzes.resultJson,
+        createdAt: quizzes.createdAt,
+      })
+      .from(quizzes)
+      .where(and(eq(quizzes.userId, userId), eq(quizzes.projectId, projectId)))
+      .orderBy(desc(quizzes.createdAt))
+      .limit(5);
+
+    result.push({
+      repo: project.repo,
+      commit: latest.commit.slice(0, 8),
+      analysisId: latest.id,
+      jobId: job?.id ?? null,
+      concepts: analysis.map.concepts.map((c) => ({ id: c.id, name: c.name, files: c.files })),
+      debt,
+      recent: recent.map((q) => ({
+        ...q,
+        result: q.resultJson ? (JSON.parse(q.resultJson) as { debtBefore: number | null; debtAfter: number }) : null,
+      })),
+      lastQuizAt: recent[0]?.createdAt ?? 0,
+    });
+  }
+  return result.sort((a, b) => b.lastQuizAt - a.lastQuizAt);
 }
