@@ -48,7 +48,7 @@ export default function Home() {
       </div>
 
       <p className="mt-7">
-        <Button render={<Link href="/demo" />} variant="secondary">
+        <Button nativeButton={false} render={<Link href="/demo" />} variant="secondary">
           porklog 데모 보기 →
         </Button>
       </p>

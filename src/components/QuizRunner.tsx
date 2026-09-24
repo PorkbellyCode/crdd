@@ -207,7 +207,7 @@ export default function QuizRunner({ initial, returnTo }: { initial: QuizView; r
             계산합니다. 한 번 잘 풀었다고 부채가 0이 되지는 않습니다.
           </p>
           {returnTo ? (
-            <Button render={<Link href={returnTo} />} variant="secondary" className="mt-2 self-start">
+            <Button nativeButton={false} render={<Link href={returnTo} />} variant="secondary" className="mt-2 self-start">
               지도로 돌아가기
             </Button>
           ) : null}

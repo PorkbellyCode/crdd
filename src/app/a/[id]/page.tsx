@@ -76,7 +76,7 @@ export default function AnalysisPage({ params }: { params: Promise<{ id: string 
         <p className="mt-2.5 max-w-[60ch] text-sm text-muted-foreground">
           분석 작업은 아직 서버 메모리에만 있어서 재시작하면 사라집니다. 다시 시도해 주세요.
         </p>
-        <Button render={<Link href="/" />} variant="secondary" className="mt-5">
+        <Button nativeButton={false} render={<Link href="/" />} variant="secondary" className="mt-5">
           처음으로
         </Button>
       </main>
@@ -110,7 +110,7 @@ export default function AnalysisPage({ params }: { params: Promise<{ id: string 
         <p className="mt-3 font-mono text-[11px] text-dim">
           public 레포인지, 주소가 맞는지 확인해 주세요.
         </p>
-        <Button render={<Link href="/" />} variant="secondary" className="mt-5">
+        <Button nativeButton={false} render={<Link href="/" />} variant="secondary" className="mt-5">
           다시 시도
         </Button>
       </main>

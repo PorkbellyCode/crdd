@@ -27,7 +27,7 @@ export default function StartQuizButton({
   if (!settings) {
     return (
       <div className="mt-3.5">
-        <Button render={<Link href={`/settings?next=${encodeURIComponent(returnTo)}`} />} size="sm" className="w-full">
+        <Button nativeButton={false} render={<Link href={`/settings?next=${encodeURIComponent(returnTo)}`} />} size="sm" className="w-full">
           API 키를 넣고 퀴즈 풀기
         </Button>
         <p className="mt-1.5 font-mono text-[10px] text-dim">퀴즈 출제·채점에 본인 Anthropic 키가 필요합니다</p>
