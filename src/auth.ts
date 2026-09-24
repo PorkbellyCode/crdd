@@ -12,7 +12,10 @@
  */
 import NextAuth from "next-auth";
 import GitHub from "next-auth/providers/github";
+import { cookies } from "next/headers";
+import { mergeAnonymousRecords } from "@/db/merge-repo";
 import { upsertUser } from "@/db/user-repo";
+import { USER_COOKIE, isAnonymousId } from "@/lib/user-cookie";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   providers: [GitHub],
@@ -33,6 +36,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           name: profile.name ?? null,
           image: typeof profile.avatar_url === "string" ? profile.avatar_url : null,
         });
+        await adoptAnonymousRecords(userId);
       }
       return token;
     },
@@ -42,3 +46,19 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
   },
 });
+
+/**
+ * 로그인 전에 이 브라우저에서 푼 퀴즈·점수를 계정으로 옮기고 익명 쿠키를 지운다.
+ * 실패해도 로그인은 막지 않는다 — 기록은 익명 ID에 그대로 남아 다음 로그인 때 다시 시도된다.
+ */
+async function adoptAnonymousRecords(accountId: string) {
+  try {
+    const store = await cookies();
+    const anonymousId = store.get(USER_COOKIE)?.value;
+    if (!anonymousId || !isAnonymousId(anonymousId)) return;
+    await mergeAnonymousRecords(anonymousId, accountId);
+    store.delete(USER_COOKIE);
+  } catch (error) {
+    console.error("익명 기록 병합 실패", error instanceof Error ? error.message : "unknown");
+  }
+}

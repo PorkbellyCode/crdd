@@ -11,16 +11,16 @@
 import "server-only";
 import { cookies } from "next/headers";
 import { auth } from "@/auth";
+import { isAnonymousId, USER_COOKIE } from "./user-cookie";
 
-export const USER_COOKIE = "crdd_uid";
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+export { USER_COOKIE };
 /** 브라우저가 허용하는 쿠키 수명 상한(400일) */
 const MAX_AGE_SEC = 400 * 24 * 60 * 60;
 
 /** 쿠키의 익명 ID만 읽는다 */
 export async function getAnonymousId(): Promise<string | null> {
   const value = (await cookies()).get(USER_COOKIE)?.value;
-  return value && UUID_PATTERN.test(value) ? value : null;
+  return value && isAnonymousId(value) ? value : null;
 }
 
 /** 로그인한 계정 ID. 로그인 안 했으면 null */
