@@ -27,14 +27,14 @@ export default async function Home() {
 
   return (
     <main className="mx-auto max-w-6xl px-5 pt-12 pb-20">
-      <section className="grid items-center gap-10 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
-        <div>
-          <h1 className="text-[clamp(28px,4.2vw,40px)] leading-[1.2] font-bold tracking-[-0.02em] text-balance">
+      <section className="grid items-start gap-10 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+        <div className="lg:pt-6">
+          <h1 className="text-[clamp(28px,4.2vw,40px)] leading-[1.2] font-bold tracking-[-0.02em] break-keep text-balance">
             AI가 짠 코드,
             <br />
             설명할 수 있나요?
           </h1>
-          <p className="mt-4 max-w-[46ch] text-muted-foreground">
+          <p className="mt-4 max-w-[46ch] break-keep text-muted-foreground">
             테스트 커버리지가 실행된 줄을 보여주듯, CRDD는 내가 설명할 수 있는 코드를 보여줍니다.
             레포를 연결하고 퀴즈를 풀면 설명하지 못한 부분이 부채비율로 드러납니다.
           </p>

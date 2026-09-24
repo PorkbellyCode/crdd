@@ -13,7 +13,7 @@ interface Tab {
 
 /**
  * 상단 탭 바 — 에디터의 열린 파일 탭처럼 생겼다. 활성 탭은 위쪽 파란 선과 편집기 배경색으로
- * 아래 본문과 이어진다.
+ * 아래 본문과 이어진다. 에디터처럼 창 가장자리에 붙인다 (본문 폭에 맞춰 가운데로 모으지 않는다).
  */
 export default function TabBar({ signedIn }: { signedIn: boolean }) {
   const path = usePathname();
@@ -26,7 +26,7 @@ export default function TabBar({ signedIn }: { signedIn: boolean }) {
 
   return (
     <header className="border-b border-border bg-chrome">
-      <nav className="mx-auto flex max-w-6xl items-stretch overflow-x-auto px-5" aria-label="주요 화면">
+      <nav className="flex items-stretch overflow-x-auto px-4" aria-label="주요 화면">
         <Link href="/" className="flex items-center pr-5 text-[13px] font-bold tracking-tight text-foreground">
           crdd
         </Link>
