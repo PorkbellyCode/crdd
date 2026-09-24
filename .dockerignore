@@ -1,0 +1,14 @@
+# flyctl launch added from .gitignore
+**/node_modules
+**/.next
+**/out
+**/build
+**/.env*
+!**/.env.example
+**/next-env.d.ts
+**/.DS_Store
+**/*.tsbuildinfo
+**/graphify-out
+**/local.db
+**/local.db-*
+fly.toml
