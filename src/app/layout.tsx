@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { IBM_Plex_Mono, IBM_Plex_Sans_KR } from "next/font/google";
 import "./globals.css";
+import SiteHeader from "@/components/SiteHeader";
 import { cn } from "@/lib/utils";
 
 const plexSans = IBM_Plex_Sans_KR({
@@ -25,7 +26,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     // 다크 단일 테마 — 토큰 값 자체가 다크라 .dark는 shadcn 변형을 위해 붙인다
     <html lang="ko" className={cn("dark", plexSans.variable, plexMono.variable)}>
-      <body className="font-sans leading-relaxed">{children}</body>
+      <body className="font-sans leading-relaxed">
+        <SiteHeader />
+        {children}
+      </body>
     </html>
   );
 }
