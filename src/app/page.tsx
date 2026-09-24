@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { auth, signIn } from "@/auth";
 import AnalyzeForm from "@/components/AnalyzeForm";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -21,7 +22,13 @@ const STEPS = [
   },
 ];
 
-export default function Home() {
+export default async function Home() {
+  const session = await auth();
+  async function signInToAnalyze() {
+    "use server";
+    await signIn("github", { redirectTo: "/" });
+  }
+
   return (
     <main className="mx-auto max-w-5xl px-5 pt-10 pb-16">
       <p className="eyebrow mb-2.5">CRDD · Code Recognition Debt Deductor</p>
@@ -35,7 +42,7 @@ export default function Home() {
         못한 영역이 당신의 인지부채입니다.
       </p>
 
-      <AnalyzeForm />
+      <AnalyzeForm signedIn={Boolean(session?.user?.id)} signInAction={signInToAnalyze} />
 
       <div className="mt-8 grid gap-3 sm:grid-cols-3">
         {STEPS.map((step) => (

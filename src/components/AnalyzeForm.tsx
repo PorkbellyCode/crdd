@@ -5,7 +5,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
-export default function AnalyzeForm() {
+export default function AnalyzeForm({ signedIn, signInAction }: { signedIn: boolean; signInAction: () => Promise<void> }) {
   const router = useRouter();
   const [repo, setRepo] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -32,6 +32,19 @@ export default function AnalyzeForm() {
       setError("서버에 연결하지 못했습니다");
       setPending(false);
     }
+  }
+
+  if (!signedIn) {
+    return (
+      <form action={signInAction} className="mt-6 max-w-2xl">
+        <div className="flex flex-wrap items-center gap-3">
+          <Button type="submit">GitHub로 로그인하고 분석하기</Button>
+          <span className="font-mono text-[11px] text-dim">
+            레포 분석은 로그인이 필요합니다 · 레포 권한은 요청하지 않습니다
+          </span>
+        </div>
+      </form>
+    );
   }
 
   return (
