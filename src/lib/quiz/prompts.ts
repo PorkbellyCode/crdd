@@ -10,6 +10,7 @@ import "server-only";
 import type { SourceFile } from "@/lib/github/source";
 import { normalizeConceptName } from "@/lib/crdd/concepts";
 import { llmClient, type LlmCredentials } from "@/lib/llm/server";
+import { tidyExcerpt } from "./excerpt";
 import type { Verdict } from "./flow";
 import type { QuizLevel, QuizQuestion, QuizStage } from "./types";
 
@@ -155,7 +156,7 @@ export function sanitizeQuestions(questions: QuizQuestion[], material: SourceFil
       return {
         level: LEVELS.includes(q.level) ? q.level : "understanding",
         question: q.question.trim(),
-        codeExcerpt: { file: q.codeExcerpt.file, startLine: start, endLine: end, code: String(q.codeExcerpt.code ?? "") },
+        codeExcerpt: tidyExcerpt({ file: q.codeExcerpt.file, startLine: start, endLine: end, code: String(q.codeExcerpt.code ?? "") }, lines),
         rubric: q.rubric.filter((r) => typeof r === "string" && r.trim()).map((r) => r.trim()),
         hint: String(q.hint ?? "").trim(),
         explanation: String(q.explanation ?? "").trim(),
