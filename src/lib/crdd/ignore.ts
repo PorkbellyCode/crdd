@@ -25,12 +25,26 @@ export const GRAPHIFY_IGNORE_LINES = [
   "*.config.mjs",
   "*.config.cjs",
   "next-env.d.ts",
+  // 린터·포매터·모노레포 설정 — vercel/swr 실측에서 .oxlintrc.json 하나가 심볼 94개짜리
+  // 개념이 됐다 (규칙 이름들이 심볼로 잡힘)
+  ".*rc",
+  ".*rc.json",
+  ".*rc.yaml",
+  ".*rc.yml",
+  ".*rc.js",
+  ".*rc.cjs",
+  "biome.json",
+  "biome.jsonc",
+  "turbo.json",
+  "renovate.json",
+  "lerna.json",
+  "nx.json",
 ] as const;
 
 export const GRAPHIFY_IGNORE_FILE = GRAPHIFY_IGNORE_LINES.join("\n") + "\n";
 
 const NOISE_PATTERN =
-  /(^|\/)(package(-lock)?\.json|pnpm-lock\.yaml|yarn\.lock|tsconfig[^/]*\.json|[^/]*\.config\.(ts|js|mjs|cjs)|next-env\.d\.ts|components\.json|vercel\.json|\.eslintrc[^/]*)$/;
+  /(^|\/)(package(-lock)?\.json|pnpm-lock\.yaml|yarn\.lock|tsconfig[^/]*\.json|[^/]*\.config\.(ts|js|mjs|cjs)|next-env\.d\.ts|components\.json|vercel\.json|\.[^/]*rc(\.(json|ya?ml|c?js))?|biome\.jsonc?|turbo\.json|renovate\.json|lerna\.json|nx\.json)$/;
 
 const TEST_PATTERN =
   /(^|\/)(tests?|__tests__|__mocks__|e2e)\/|\.(test|spec)\.[tj]sx?$/;
