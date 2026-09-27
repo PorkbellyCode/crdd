@@ -175,6 +175,70 @@ export async function getConcept(projectId: string, key: string) {
   return row ? { ...row, files: JSON.parse(row.filesJson) as string[] } : null;
 }
 
+/**
+ * 분석 하나의 communityId → 최신 concept 이름.
+ * 저장된 MapData의 이름은 분석 시점의 1차 이름이라, 2차(LLM)·수동으로 바뀐 이름은 여기서 덮는다.
+ */
+export async function getConceptNames(
+  analysisId: string,
+): Promise<Record<number, { name: string; nameSource: "auto" | "llm" | "manual" }>> {
+  const analysis = await getAnalysis(analysisId);
+  if (!analysis) return {};
+  const keys = await getConceptKeys(analysisId);
+  const rows = await db.select().from(concepts).where(eq(concepts.projectId, analysis.projectId));
+  const byKey = new Map(rows.map((row) => [row.key, row]));
+  const names: Record<number, { name: string; nameSource: "auto" | "llm" | "manual" }> = {};
+  for (const [communityId, key] of Object.entries(keys)) {
+    const row = byKey.get(key);
+    if (row) {
+      names[Number(communityId)] = {
+        name: row.name,
+        nameSource: (row.nameSource as "auto" | "llm" | "manual") ?? "auto",
+      };
+    }
+  }
+  return names;
+}
+
+/** MapData에 최신 이름을 입힌다 (원본은 건드리지 않는다) */
+export function withConceptNames(
+  map: MapData,
+  names: Record<number, { name: string; nameSource: "auto" | "llm" | "manual" }>,
+): MapData {
+  return {
+    ...map,
+    concepts: map.concepts.map((concept) => ({
+      ...concept,
+      name: names[concept.id]?.name ?? concept.name,
+      nameSource: names[concept.id]?.nameSource ?? "auto",
+    })),
+  };
+}
+
+/**
+ * concept 이름 바꾸기.
+ *   llm    — 1차(auto) 이름일 때만 바꾼다. 사람이 고친 이름을 AI가 덮지 않게
+ *   manual — 언제든 바꾼다
+ * 이름은 프로젝트 공용이다 (점수와 달리 사용자별이 아니다).
+ */
+export async function renameConcept(
+  projectId: string,
+  key: string,
+  name: string,
+  source: "llm" | "manual",
+): Promise<boolean> {
+  const where =
+    source === "llm"
+      ? and(eq(concepts.projectId, projectId), eq(concepts.key, key), eq(concepts.nameSource, "auto"))
+      : and(eq(concepts.projectId, projectId), eq(concepts.key, key));
+  const updated = await db
+    .update(concepts)
+    .set({ name, nameSource: source, nameRule: source === "llm" ? "llm" : "manual", updatedAt: nowSec() })
+    .where(where)
+    .returning({ id: concepts.id });
+  return updated.length > 0;
+}
+
 // --- jobs ---
 
 export async function createJobRow(repo: string): Promise<string> {
@@ -252,7 +316,11 @@ export async function getUserProjects(userId: string) {
       commit: latest.commit.slice(0, 8),
       analysisId: latest.id,
       jobId: job?.id ?? null,
-      concepts: analysis.map.concepts.map((c) => ({ id: c.id, name: c.name, files: c.files })),
+      concepts: withConceptNames(analysis.map, await getConceptNames(latest.id)).concepts.map((c) => ({
+        id: c.id,
+        name: c.name,
+        files: c.files,
+      })),
       debt,
       recent: recent.map((q) => ({
         ...q,

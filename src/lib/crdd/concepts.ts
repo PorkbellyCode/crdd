@@ -146,3 +146,16 @@ export function nameCommunities(graph: GraphJson): Concept[] {
 
   return concepts;
 }
+
+/** 2차(LLM)·수동 이름 정리 — 공백 정리, 제어 문자 제거, 1~40자. 쓸 수 없으면 null */
+export function normalizeConceptName(input: unknown): string | null {
+  if (typeof input !== "string") return null;
+  const name = input
+    .replace(/[\u0000-\u001f\u007f]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/^["'`]+|["'`]+$/g, "")
+    .trim();
+  if (name.length === 0 || name.length > 40) return null;
+  return name;
+}

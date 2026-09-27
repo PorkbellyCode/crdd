@@ -21,6 +21,7 @@ interface JobView {
   timings?: { clone: number; extract: number; layout: number };
   fileCount?: number;
   debt?: Record<number, number | null>;
+  canRename?: boolean;
 }
 
 const STEP_LABEL: Record<string, string> = {
@@ -154,6 +155,37 @@ export default function AnalysisPage({ params }: { params: Promise<{ id: string 
       <UnderstandingMap
         data={map}
         debt={debt}
+        rename={
+          job.canRename && job.analysisId
+            ? async (concept, name) => {
+                try {
+                  const response = await fetch("/api/concepts", {
+                    method: "PATCH",
+                    headers: { "content-type": "application/json" },
+                    body: JSON.stringify({ analysisId: job.analysisId, communityId: concept.id, name }),
+                  });
+                  const data = await response.json();
+                  if (!response.ok) return data.error ?? "이름을 바꾸지 못했습니다";
+                  setJob((prev) =>
+                    prev?.map
+                      ? {
+                          ...prev,
+                          map: {
+                            ...prev.map,
+                            concepts: prev.map.concepts.map((c) =>
+                              c.id === concept.id ? { ...c, name: data.name, nameSource: "manual" } : c,
+                            ),
+                          },
+                        }
+                      : prev,
+                  );
+                  return null;
+                } catch {
+                  return "서버에 연결하지 못했습니다";
+                }
+              }
+            : "login"
+        }
         renderAction={(concept) =>
           job.analysisId ? (
             <StartQuizButton

@@ -8,6 +8,7 @@
  */
 import "server-only";
 import type { SourceFile } from "@/lib/github/source";
+import { normalizeConceptName } from "@/lib/crdd/concepts";
 import { llmClient, type LlmCredentials } from "@/lib/llm/server";
 import type { Verdict } from "./flow";
 import type { QuizLevel, QuizQuestion, QuizStage } from "./types";
@@ -28,6 +29,7 @@ const GENERATE_SYSTEM = [
   "7. explanation에는 정답을 코드에 근거해 설명하세요. 이 단계는 사용자가 스스로 답하지 못한 뒤에만 보이므로 정답이 드러나도 됩니다.",
   "8. 질문은 3~6문장으로 답할 수 있는 크기로 만드세요. 한 질문에 여러 질문을 섞지 마세요.",
   "9. 모든 문장은 한국어로 쓰세요. 코드 식별자는 원문 그대로 둡니다.",
+  "10. conceptName에는 이 concept이 프로젝트에서 맡은 역할을 가리키는 짧은 이름(한국어, 2~5단어, 20자 안팎)을 쓰세요. 지금 이름은 파일·디렉터리 이름에서 기계적으로 뽑은 것입니다. 파일 이름을 그대로 옮기지 말고 '게시글 작성·수정', '주간 기술 뉴스 수집'처럼 개발자가 기능을 부르는 말로 쓰세요.",
 ].join("\n");
 
 const QUESTION_SCHEMA = {
@@ -76,7 +78,13 @@ export interface GenerateInput extends LlmCredentials {
   material: SourceFile[];
 }
 
-export async function generateQuestions(input: GenerateInput): Promise<QuizQuestion[]> {
+export interface GeneratedQuiz {
+  questions: QuizQuestion[];
+  /** 2차 이름 제안 — 쓸 수 없는 값이면 null */
+  conceptName: string | null;
+}
+
+export async function generateQuestions(input: GenerateInput): Promise<GeneratedQuiz> {
   const prompt = [
     `레포: ${input.repo} (커밋 ${input.commit.slice(0, 8)})`,
     `이번 퀴즈의 concept: "${input.concept.name}"`,
@@ -92,7 +100,7 @@ export async function generateQuestions(input: GenerateInput): Promise<QuizQuest
     .filter((line) => line !== "")
     .join("\n");
 
-  const result = await llmClient(input.provider).callTool<{ questions: QuizQuestion[] }>({
+  const result = await llmClient(input.provider).callTool<{ questions: QuizQuestion[]; conceptName?: string }>({
     apiKey: input.apiKey,
     model: input.model,
     system: GENERATE_SYSTEM,
@@ -104,6 +112,10 @@ export async function generateQuestions(input: GenerateInput): Promise<QuizQuest
       input_schema: {
         type: "object",
         properties: {
+          conceptName: {
+            type: "string",
+            description: "이 concept의 역할을 가리키는 짧은 한국어 이름 (규칙 10)",
+          },
           questions: {
             type: "array",
             items: QUESTION_SCHEMA,
@@ -111,12 +123,15 @@ export async function generateQuestions(input: GenerateInput): Promise<QuizQuest
             maxItems: QUESTION_COUNT,
           },
         },
-        required: ["questions"],
+        required: ["conceptName", "questions"],
       },
     },
   });
 
-  return sanitizeQuestions(result.questions ?? [], input.material);
+  return {
+    questions: sanitizeQuestions(result.questions ?? [], input.material),
+    conceptName: normalizeConceptName(result.conceptName),
+  };
 }
 
 /** LLM 출력 검증 — material에 없는 파일을 인용했거나 필수 값이 빈 문항은 버린다 */
