@@ -124,6 +124,8 @@ export default function QuizRunner({ initial, returnTo }: { initial: QuizView; r
             <h2 className="mt-2 text-[15px] leading-relaxed font-semibold">{question.question}</h2>
             <CodeExcerpt excerpt={question.codeExcerpt} />
 
+            {/* 시간 순서대로: 답변 1 → 놓친 포인트 → 답변 2 → 설명 → 답변 3.
+                힌트는 첫 답변 뒤에, 설명은 두 번째 답변 뒤에 열린 것이므로 그 자리에 둔다 */}
             {question.attempts.map((attempt, n) => (
               <div key={n} className="mt-3">
                 <p className="text-xs text-dim">
@@ -138,15 +140,29 @@ export default function QuizRunner({ initial, returnTo }: { initial: QuizView; r
                     {attempt.feedback}
                   </Note>
                 ) : null}
+                {n === 0 && question.hint && !attempt.passed ? (
+                  <Note title="놓친 포인트" tone="hint">
+                    {question.hint}
+                  </Note>
+                ) : null}
+                {n === 1 && question.explanation && !attempt.passed ? (
+                  <Note title="설명" tone="explain">
+                    {question.explanation}
+                  </Note>
+                ) : null}
               </div>
             ))}
 
-            {question.hint && (isActive || question.outcome) ? (
-              <Note title="놓친 포인트" tone="hint">
-                {question.hint}
+            {/* 설명 단계 전에 끝난 문항(첫 시도·힌트 후 정답)은 마지막에 참고용 설명 */}
+            {question.explanation && question.outcome && question.attempts.length < 2 ? (
+              <Note title="설명" tone="explain">
+                {question.explanation}
               </Note>
             ) : null}
-            {question.explanation && (question.stage === "explanation" || question.outcome) ? (
+            {question.explanation &&
+            question.outcome &&
+            question.attempts.length === 2 &&
+            question.attempts[1]!.passed ? (
               <Note title="설명" tone="explain">
                 {question.explanation}
               </Note>
