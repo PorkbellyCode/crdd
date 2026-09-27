@@ -70,12 +70,14 @@ docker run -p 3000:3000 crdd-web
 | `src/lib/user.ts` | 현재 사용자 — 로그인 계정 ID, 아니면 익명 기기 ID 쿠키 |
 | `src/db/merge-repo.ts` | 익명 기록 → 계정 이전 (겹치는 concept은 합친 이력으로 점수 재계산) |
 | `src/lib/crdd/score.ts` | 배점 차등, 누적+스무딩, tier 가중치, overall 부채비율 (crdd-mcp에서 이식) |
-| `src/lib/crdd/concepts.ts` | 커뮤니티 → concept 이름 (1차, 결정론적, LLM 불필요) |
+| `src/lib/crdd/concepts.ts` | 커뮤니티 → concept 이름 (1차, 결정론적, LLM 불필요), 2차·수동 이름 정리 |
 | `src/lib/crdd/identity.ts` | concept 영속 키 — 재분석 때 파일 집합 유사도(Jaccard ≥ 0.5)로 기존 키를 이어받는다 |
 | `src/lib/crdd/layout.ts` | force-directed 레이아웃. 시드 고정이라 같은 커밋 = 같은 그림 |
 | `src/lib/crdd/map.ts` | 개념/파일 두 수준의 MapData 생성 |
 | `src/lib/crdd/ignore.ts` | 분석 전 제외할 매니페스트·설정 파일 |
-| `src/components/UnderstandingMap.tsx` | 개념/파일 보기 전환, 부채비율 오버레이 |
+| `src/lib/crdd/tidy.ts` | 저장된 좌표를 화면용으로 정돈 — 이상치만 압축, 원+이름 사각형 겹침 해소, 연결 없는 개념은 아래 한 줄로 |
+| `src/lib/client/use-pan-zoom.ts` | 확대·이동. 100% = 1px, 전체 보기는 72%까지만 줄이고 넘치면 선택한 개념에 초점 |
+| `src/components/UnderstandingMap.tsx` | 개념/파일 보기 전환, 부채비율 게이지(테두리 호), 이름 고치기 |
 | `src/components/ui/*` | shadcn/ui 컴포넌트 (base-nova 프리셋) |
 | `src/app/globals.css` | Tailwind v4 + shadcn 토큰을 CRDD 다크 팔레트로 덮은 곳 |
 
@@ -130,8 +132,11 @@ Graphify의 커뮤니티 번호는 재분석마다 다시 매겨진다. 점수�
 손으로 더한 것이다 — SQLite는 기본값 없는 NOT NULL 컬럼을 기존 테이블에 추가하지
 못한다. 기존 concept은 `c<번호>-legacy` 키를 받고, 다음 재분석 때 그 키를 이어받는다.
 
-재분석해도 **사용자가 고친 concept 이름은 덮어쓰지 않는다** (`nameSource`가 auto가
-아니면 유지). 큰 JSON은 지금 text 컬럼에 둔다 — porklog 기준 map 72KB, 해시 12KB.
+concept 이름은 세 단계다 — `auto`(분석 직후 파일 구조로), `llm`(첫 퀴즈를 낼 때 출제
+도구 호출이 함께 돌려준 이름으로, auto일 때만 바꾼다), `manual`(로그인한 사용자가
+`PATCH /api/concepts`로 고침). 이름은 점수와 달리 프로젝트 공용이라 수동 수정은 로그인이
+필요하다. 재분석해도 **auto가 아닌 이름은 덮어쓰지 않는다**. 화면은 분석 시점의 MapData
+위에 concept 표의 최신 이름을 입혀서 보여준다. 큰 JSON은 지금 text 컬럼에 둔다 — porklog 기준 map 72KB, 해시 12KB.
 수 MB가 되면 오브젝트 스토리지로 빼고 참조만 남기는 게 맞다.
 
 ## 배포 · CI/CD
@@ -196,6 +201,7 @@ AUTH_GITHUB_SECRET=...
 | 새 레포 분석 | — | ✓ |
 | 퀴즈 (본인 키) | ✓ (익명 ID에 기록) | ✓ |
 | 내 프로젝트 | — | ✓ |
+| 개념 이름 고치기 | — | ✓ |
 
 ## 테스트
 
@@ -215,8 +221,8 @@ bun run typecheck
 
 ## 다음
 
-1. concept 이름 2차 — 사용자 키로 LLM 다듬기 + 직접 수정 UI (`nameSource` 준비됨)
-2. 데모 스냅샷을 실제 퀴즈 결과로 교체 (지금 `/demo` 부채비율은 예시 값)
+1. 데모 스냅샷을 실제 퀴즈 결과로 교체 (지금 `/demo` 부채비율은 예시 값)
+2. 개념이 수십 개인 레포(vercel/swr 44개)용 보기 — 클러스터 접기나 목록 보기
 3. Google 로그인 추가, 개념별 추이 그래프
 4. 변경 감지 — 저장된 해시 스냅샷과 비교해 stale 표시
 5. 작업 복구 — 실행 중 재시작하면 running 상태로 남는다
