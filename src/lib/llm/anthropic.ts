@@ -8,6 +8,7 @@
  * 요청 본문을 절대 넣지 않는다 — 에러는 화면과 서버 로그로 흘러가기 때문이다.
  */
 import "server-only";
+import { describeInvalidRequest } from "./describe";
 import { filterModels, type ModelInfo } from "./providers";
 import { LlmError, type LlmClient, type ToolCall } from "./types";
 
@@ -24,12 +25,14 @@ function headers(apiKey: string) {
   };
 }
 
-/** Anthropic 에러를 사용자에게 보여줄 문장으로 — 원문 본문은 버린다 */
+/** Anthropic 에러를 사용자에게 보여줄 문장으로 */
 async function toLlmError(response: Response): Promise<LlmError> {
   let type = "";
+  let message = "";
   try {
-    const body = (await response.json()) as { error?: { type?: string } };
+    const body = (await response.json()) as { error?: { type?: string; message?: string } };
     type = body.error?.type ?? "";
+    message = body.error?.message ?? "";
   } catch {
     // 본문이 JSON이 아니면 상태 코드만으로 판단한다
   }
@@ -46,7 +49,7 @@ async function toLlmError(response: Response): Promise<LlmError> {
       return new LlmError("Anthropic API가 혼잡합니다. 잠시 후 다시 시도해 주세요.", 503);
     default:
       if (type === "invalid_request_error") {
-        return new LlmError("LLM 요청이 거절되었습니다 (크레딧 잔액 부족일 수 있습니다).", 400);
+        return new LlmError(describeInvalidRequest(message), 400);
       }
       return new LlmError(`LLM 호출에 실패했습니다 (HTTP ${response.status}).`, 502);
   }
