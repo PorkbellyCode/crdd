@@ -87,6 +87,8 @@ export interface ProjectStore {
 export interface MapConcept {
   id: number;
   name: string;
+  /** 이름의 출처. 저장된 분석에는 없고, 조회할 때 concept 표의 최신 이름과 함께 붙인다 */
+  nameSource?: Concept["nameSource"];
   nodes: number;
   files: string[];
   top: { label: string; file?: string | null; loc?: string | null; fan: number }[];

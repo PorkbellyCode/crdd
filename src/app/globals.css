@@ -108,6 +108,10 @@
   --debt-crit: #c62f3b;
   --debt-cold: #8c95a5;
 
+  /* 지도 — 개념 사이 연결선, 부채비율 호의 빈 트랙 */
+  --edge: #c9cfd8;
+  --track: #e4e7ec;
+
   --radius: 0.375rem;
   color-scheme: light;
 }
@@ -157,6 +161,9 @@
   --debt-warn: #e2b54a;
   --debt-crit: #f2707a;
   --debt-cold: #5f6878;
+
+  --edge: #363c48;
+  --track: #2b303a;
 
   color-scheme: dark;
 }

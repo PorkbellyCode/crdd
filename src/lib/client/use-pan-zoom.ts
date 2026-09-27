@@ -9,9 +9,66 @@ import type { Box } from "@/lib/crdd/tidy";
  *   휠 / 트랙패드 핀치  → 커서 위치 기준 확대·축소
  *   드래그             → 이동 (4px 넘게 움직였으면 클릭으로 치지 않는다)
  *   zoomBy / fit       → 버튼용
+ *
+ * 배율 100% = 좌표 1단위가 화면 1px. 전체 보기는 내용이 칸보다 크면 줄이지만(72%까지),
+ * 작다고 키우지는 않는다 — 키우면 글자·선이 같이 커져 지도가 뭉툭해진다.
+ * 72%로도 다 안 들어가는 큰 지도는 초점(선택한 개념)을 가운데에 둔다.
  */
-export function usePanZoom(fitBox: Box) {
+export function fitToViewport(
+  content: Box,
+  width: number,
+  height: number,
+  focus?: { x: number; y: number },
+): Box {
+  if (width <= 0 || height <= 0) return content;
+  const needed = Math.max(content.w / width, content.h / height, 1);
+  // 좁은 화면·큰 지도에서는 72%까지만 줄인다 — 더 줄이면 이름을 읽을 수 없다
+  const scale = Math.min(needed, 1 / 0.72);
+  const w = width * scale;
+  const h = height * scale;
+  const centered = { x: content.x + (content.w - w) / 2, y: content.y + (content.h - h) / 2, w, h };
+  if (scale >= needed || !focus) return centered;
+  // 다 들어가지 않으면 초점(선택한 개념)을 가운데에 두되, 내용 밖으로 나가지 않게
+  const clampAxis = (center: number, size: number, start: number, span: number) =>
+    span <= size ? start + (span - size) / 2 : Math.min(Math.max(center - size / 2, start), start + span - size);
+  return {
+    x: clampAxis(focus.x, w, content.x, content.w),
+    y: clampAxis(focus.y, h, content.y, content.h),
+    w,
+    h,
+  };
+}
+
+export function usePanZoom(contentBox: Box, focus?: { x: number; y: number }) {
   const svgRef = useRef<SVGSVGElement | null>(null);
+  const [size, setSize] = useState({ w: 0, h: 0 });
+
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const measure = () => {
+      const rect = svg.getBoundingClientRect();
+      setSize((prev) =>
+        Math.abs(prev.w - rect.width) < 1 && Math.abs(prev.h - rect.height) < 1
+          ? prev
+          : { w: rect.width, h: rect.height },
+      );
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(svg);
+    return () => observer.disconnect();
+  }, []);
+
+  // 초점은 처음 맞출 때만 쓴다 — 개념을 고를 때마다 화면이 튀지 않게 보기(데이터)가 바뀔 때만 다시 계산
+  const focusRef = useRef(focus);
+  const focusKey = `${contentBox.x}:${contentBox.y}:${contentBox.w}:${contentBox.h}`;
+  const lastKey = useRef(focusKey);
+  if (lastKey.current !== focusKey) {
+    lastKey.current = focusKey;
+    focusRef.current = focus;
+  }
+  const fitBox = fitToViewport(contentBox, size.w, size.h, focusRef.current);
   const [box, setBox] = useState<Box>(fitBox);
   const boxRef = useRef(box);
   boxRef.current = box;
@@ -23,13 +80,14 @@ export function usePanZoom(fitBox: Box) {
 
   const clamp = useCallback(
     (next: Box): Box => {
-      const minW = fitBox.w / 10;
+      // 실제 크기의 4배까지 확대, 전체 보기의 두 배까지 축소
+      const minW = Math.min(fitBox.w, size.w || fitBox.w) / 4;
       const maxW = fitBox.w * 2;
       const w = Math.min(Math.max(next.w, minW), maxW);
       const ratio = w / next.w;
       return { x: next.x, y: next.y, w, h: next.h * ratio };
     },
-    [fitBox.w],
+    [fitBox.w, size.w],
   );
 
   /** 화면 좌표 → SVG 좌표 */
@@ -114,7 +172,8 @@ export function usePanZoom(fitBox: Box) {
   return {
     svgRef,
     viewBox: `${box.x} ${box.y} ${box.w} ${box.h}`,
-    zoom: fitBox.w / box.w,
+    /** 실제 크기 대비 배율 (1 = 좌표 1단위가 1px) */
+    zoom: size.w > 0 ? size.w / box.w : 1,
     dragged,
     zoomBy: (factor: number) => zoomAt(factor),
     fit: () => setBox(fitBox),

@@ -1,10 +1,10 @@
 "use client";
 
-import { CircleCheck, CircleDashed, CircleX, Maximize2, Minus, Plus, TriangleAlert } from "lucide-react";
+import { Circle, CircleCheck, CircleX, Maximize2, Minus, Pencil, Plus, TriangleAlert } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { usePanZoom } from "@/lib/client/use-pan-zoom";
-import { tidyBubbles } from "@/lib/crdd/tidy";
+import { LABEL_OFFSET, tidyBubbles } from "@/lib/crdd/tidy";
 import type { MapData } from "@/lib/crdd/types";
 
 /**
@@ -17,7 +17,7 @@ const SEVERITY = {
   ok: { label: "부채 30% 미만", icon: CircleCheck },
   warn: { label: "30–54%", icon: TriangleAlert },
   crit: { label: "55% 이상", icon: CircleX },
-  cold: { label: "미측정", icon: CircleDashed },
+  cold: { label: "미측정", icon: Circle },
 } as const;
 
 function severity(debt: number | null): Severity {
@@ -39,9 +39,20 @@ export interface UnderstandingMapProps {
   debtIsExample?: boolean;
   /** 선택한 개념의 상세 패널에 붙일 동작 (퀴즈 시작 등). 데모에서는 비운다 */
   renderAction?: (concept: MapData["concepts"][number]) => React.ReactNode;
+  /**
+   * 개념 이름 고치기. 없으면 고치는 버튼을 숨긴다.
+   * "login"이면 버튼 대신 로그인하면 고칠 수 있다고 알린다.
+   */
+  rename?: ((concept: MapData["concepts"][number], name: string) => Promise<string | null>) | "login";
 }
 
-export default function UnderstandingMap({ data, debt, debtIsExample, renderAction }: UnderstandingMapProps) {
+const NAME_SOURCE_LABEL = {
+  auto: "파일 구조로 붙인 이름",
+  llm: "퀴즈를 낼 때 AI가 다듬은 이름",
+  manual: "직접 고친 이름",
+} as const;
+
+export default function UnderstandingMap({ data, debt, debtIsExample, renderAction, rename }: UnderstandingMapProps) {
   const [view, setView] = useState<"concept" | "file">("concept");
   const [selected, setSelected] = useState(() =>
     data.concepts.reduce(
@@ -69,12 +80,15 @@ export default function UnderstandingMap({ data, debt, debtIsExample, renderActi
     [data],
   );
   const fileLayout = useMemo(
-    () => tidyBubbles(data.nodes.map((n) => ({ x: n.x, y: n.y, r: 2.6 })), [], { relax: false, gap: 4, pad: 16 }),
+    () => tidyBubbles(data.nodes.map((n) => ({ x: n.x, y: n.y, r: 3 })), [], { relax: false, pad: 16 }),
     [data],
   );
   const cpos = conceptLayout.points;
   const npos = fileLayout.points;
-  const pz = usePanZoom(view === "concept" ? conceptLayout.box : fileLayout.box);
+  const pz = usePanZoom(
+    view === "concept" ? conceptLayout.box : fileLayout.box,
+    view === "concept" ? cpos[selected] : undefined,
+  );
   const select = (index: number) => {
     if (!pz.dragged.current) setSelected(index);
   };
@@ -134,16 +148,13 @@ export default function UnderstandingMap({ data, debt, debtIsExample, renderActi
               {Math.round(pz.zoom * 100)}%
             </button>
           </div>
-          <p className="pointer-events-none absolute bottom-2 left-3 z-10 text-[11px] text-dim">
-            스크롤로 확대, 드래그로 이동
-          </p>
           <svg
             ref={pz.svgRef}
             viewBox={pz.viewBox}
             preserveAspectRatio="xMidYMid meet"
             role="img"
             aria-label={`${data.repo}의 코드 구조를 ${data.concepts.length}개 개념으로 묶어 보여주는 지도`}
-            className="block h-[min(68vh,600px)] w-full cursor-grab touch-none select-none active:cursor-grabbing"
+            className="block h-[min(68vh,560px)] w-full cursor-grab touch-none select-none active:cursor-grabbing"
             {...pz.handlers}
           >
             {view === "concept" ? (
@@ -159,17 +170,22 @@ export default function UnderstandingMap({ data, debt, debtIsExample, renderActi
                       y1={a.y}
                       x2={b.x}
                       y2={b.y}
-                      style={{ stroke: on ? "var(--primary)" : "var(--border)" }}
-                      strokeWidth={Math.min(1 + link.w * 0.35, 5)}
-                      strokeOpacity={on ? 0.9 : 0.7}
+                      style={{ stroke: on ? "var(--primary)" : "var(--edge)" }}
+                      // 연결 수 1~12를 1~3px로 — 굵기 차이는 보이되 원보다 앞에 나서지 않게
+                      strokeWidth={1 + Math.min(link.w, 12) / 6}
+                      strokeOpacity={on ? 0.85 : 1}
+                      strokeLinecap="round"
                     />
                   );
                 })}
                 {data.concepts.map((concept, i) => {
                   const at = cpos[i]!;
                   const value = debt[concept.id] ?? null;
+                  const level = severity(value);
                   const color = debtColor(value);
                   const on = i === selected;
+                  // 안쪽 숫자는 원 크기에 맞춰 — 가장 작은 원(r≈11)에서도 넘치지 않게
+                  const inner = Math.max(9, Math.min(12, concept.r * 0.62));
                   return (
                     <g
                       key={concept.id}
@@ -177,7 +193,7 @@ export default function UnderstandingMap({ data, debt, debtIsExample, renderActi
                       tabIndex={0}
                       aria-label={`${concept.name}, 심볼 ${concept.nodes}개, ${value === null ? "미측정" : `부채비율 ${value}%`}`}
                       aria-pressed={on}
-                      className="cursor-pointer outline-none"
+                      className="map-node cursor-pointer outline-none"
                       onClick={() => select(i)}
                       onKeyDown={(event) => {
                         if (event.key === "Enter" || event.key === " ") {
@@ -186,46 +202,77 @@ export default function UnderstandingMap({ data, debt, debtIsExample, renderActi
                         }
                       }}
                     >
+                      <title>{`${concept.name} — ${value === null ? "미측정" : `부채비율 ${value}%`}`}</title>
+                      {/* 선택 표시: 에디터의 선택 색으로 바깥 고리 */}
+                      {on ? (
+                        <circle
+                          cx={at.x}
+                          cy={at.y}
+                          r={concept.r + 5}
+                          style={{ fill: "none", stroke: "var(--primary)" }}
+                          strokeWidth={1.5}
+                        />
+                      ) : null}
+                      {/* 불투명 바탕 — 원 아래로 지나가는 연결선을 가린다 */}
+                      <circle cx={at.x} cy={at.y} r={concept.r} style={{ fill: "var(--editor)" }} />
                       <circle
                         cx={at.x}
                         cy={at.y}
                         r={concept.r}
-                        style={{ fill: color, stroke: on ? "var(--primary)" : color }}
-                        fillOpacity={on ? 0.28 : 0.13}
-                        strokeWidth={on ? 2.4 : 1.4}
+                        style={{ fill: color }}
+                        fillOpacity={level === "cold" ? 0 : 0.1}
                       />
+                      {/* 테두리 = 부채비율 게이지. 12시에서 시계방향으로 채우고, 남은 부분은 흐린 트랙.
+                          미측정은 빈 게이지 — 아직 잰 적이 없다는 뜻이지 0%가 아니다 */}
+                      <circle
+                        cx={at.x}
+                        cy={at.y}
+                        r={concept.r}
+                        style={{ fill: "none", stroke: "var(--track)" }}
+                        strokeWidth={3}
+                      />
+                      {level === "cold" ? null : (
+                        <circle
+                          cx={at.x}
+                          cy={at.y}
+                          r={concept.r}
+                          pathLength={100}
+                          transform={`rotate(-90 ${at.x} ${at.y})`}
+                          style={{ fill: "none", stroke: color }}
+                          strokeWidth={3}
+                          strokeDasharray={`${Math.max(value ?? 0, 0.5)} 100`}
+                        />
+                      )}
                       <text
                         x={at.x}
-                        y={at.y + 4}
+                        y={at.y}
+                        dy="0.35em"
                         textAnchor="middle"
-                        // 글자 뒤에 편집기 배경색 테두리를 둘러 선·원 위에서도 읽히게 한다
-                        style={{
-                          fill: "var(--foreground)",
-                          stroke: "var(--editor)",
-                          strokeWidth: 4,
-                          paintOrder: "stroke",
-                          strokeLinejoin: "round",
-                        }}
-                        fontSize={12}
-                        fontWeight={700}
+                        style={{ fill: level === "cold" ? "var(--dim)" : color }}
+                        fontSize={inner}
+                        fontWeight={level === "cold" ? 400 : 700}
+                        className="tabular"
                         pointerEvents="none"
                       >
-                        {concept.name}
+                        {value === null ? "—" : `${value}%`}
                       </text>
                       <text
                         x={at.x}
-                        y={at.y + concept.r + 14}
+                        y={at.y + concept.r + LABEL_OFFSET}
                         textAnchor="middle"
+                        // 연결선 위에서도 읽히게 편집기 배경색 테두리를 두른다
                         style={{
-                          fill: color,
+                          fill: on ? "var(--foreground)" : "var(--muted-foreground)",
                           stroke: "var(--editor)",
                           strokeWidth: 3,
                           paintOrder: "stroke",
+                          strokeLinejoin: "round",
                         }}
                         fontSize={11}
+                        fontWeight={on ? 700 : 500}
                         pointerEvents="none"
                       >
-                        {value === null ? "미측정" : `${value}%`}
+                        {concept.name}
                       </text>
                     </g>
                   );
@@ -243,8 +290,8 @@ export default function UnderstandingMap({ data, debt, debtIsExample, renderActi
                       y1={a.y}
                       x2={b.x}
                       y2={b.y}
-                      style={{ stroke: "var(--border)" }}
-                      strokeWidth={0.6}
+                      style={{ stroke: "var(--edge)" }}
+                      strokeWidth={0.75}
                     />
                   );
                 })}
@@ -257,7 +304,7 @@ export default function UnderstandingMap({ data, debt, debtIsExample, renderActi
                       key={i}
                       cx={npos[i]!.x}
                       cy={npos[i]!.y}
-                      r={2.6}
+                      r={3}
                       style={{ fill: debtColor(value) }}
                       // 선택한 개념의 심볼만 진하게 — 파일 보기에서도 개념의 범위가 보이게
                       fillOpacity={current && node.c === current.id ? 0.95 : 0.35}
@@ -276,9 +323,10 @@ export default function UnderstandingMap({ data, debt, debtIsExample, renderActi
         <aside className="min-w-0 rounded-lg border border-border bg-editor p-4" aria-label="선택한 개념">
           {current ? (
             <>
-              <h2 className="text-base font-bold tracking-tight">{current.name}</h2>
+              <ConceptName key={current.id} concept={current} rename={rename} />
               <p className="mb-3 text-xs text-dim">
                 심볼 {current.nodes}개, 파일 {current.files.length}개
+                {current.nameSource ? <>. {NAME_SOURCE_LABEL[current.nameSource]}</> : null}
               </p>
 
               <div className="flex items-baseline gap-2">
@@ -348,8 +396,96 @@ export default function UnderstandingMap({ data, debt, debtIsExample, renderActi
             </span>
           );
         })}
-        <span className="text-dim">원 크기는 심볼 수, 선 굵기는 개념 사이 연결 수</span>
+        <span className="text-dim">테두리 호는 부채비율, 원 크기는 심볼 수, 선 굵기는 개념 사이 연결 수</span>
+        <span className="ml-auto text-dim">스크롤로 확대, 드래그로 이동</span>
       </div>
+    </div>
+  );
+}
+
+/** 개념 이름 — 고칠 수 있으면 제자리에서 입력칸으로 바뀐다 */
+function ConceptName({
+  concept,
+  rename,
+}: {
+  concept: MapData["concepts"][number];
+  rename: UnderstandingMapProps["rename"];
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(concept.name);
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  if (editing && typeof rename === "function") {
+    const save = async () => {
+      const name = draft.trim();
+      if (!name || name === concept.name) {
+        setEditing(false);
+        return;
+      }
+      setPending(true);
+      const failure = await rename(concept, name);
+      setPending(false);
+      if (failure) setError(failure);
+      else setEditing(false);
+    };
+    return (
+      <form
+        className="mb-1"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void save();
+        }}
+      >
+        <label className="sr-only" htmlFor="concept-name">
+          개념 이름
+        </label>
+        <input
+          id="concept-name"
+          autoFocus
+          value={draft}
+          maxLength={40}
+          onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") setEditing(false);
+          }}
+          className="h-8 w-full rounded-md border border-input bg-transparent px-2 text-sm font-bold focus-visible:border-ring"
+        />
+        <div className="mt-1.5 flex gap-1.5">
+          <Button type="submit" size="xs" disabled={pending}>
+            {pending ? "저장 중…" : "이름 저장"}
+          </Button>
+          <Button type="button" size="xs" variant="ghost" onClick={() => setEditing(false)}>
+            취소
+          </Button>
+        </div>
+        {error ? <p className="mt-1 text-xs text-destructive">{error}</p> : null}
+      </form>
+    );
+  }
+
+  return (
+    <div className="flex items-start justify-between gap-2">
+      <h2 className="text-base font-bold tracking-tight break-all">{concept.name}</h2>
+      {typeof rename === "function" ? (
+        <button
+          type="button"
+          onClick={() => {
+            setDraft(concept.name);
+            setError(null);
+            setEditing(true);
+          }}
+          className="mt-0.5 grid size-6 shrink-0 place-items-center rounded-md text-dim hover:bg-secondary hover:text-foreground"
+          aria-label="이름 고치기"
+          title="이름 고치기"
+        >
+          <Pencil className="size-3.5" />
+        </button>
+      ) : rename === "login" ? (
+        <span className="mt-1 shrink-0 text-[11px] text-dim" title="개념 이름은 로그인하면 고칠 수 있습니다">
+          로그인하면 이름 수정
+        </span>
+      ) : null}
     </div>
   );
 }
