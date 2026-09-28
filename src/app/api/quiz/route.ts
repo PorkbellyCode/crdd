@@ -6,6 +6,7 @@ import { readLlmCredentials } from "@/lib/llm/request";
 import { errorResponse, QuizError } from "@/lib/quiz/errors";
 import { initialProgress } from "@/lib/quiz/flow";
 import { generateQuestions } from "@/lib/quiz/prompts";
+import { conceptStructure, renderStructure } from "@/lib/quiz/structure";
 import { toQuizView } from "@/lib/quiz/view";
 import { ensureUserId } from "@/lib/user";
 
@@ -47,10 +48,12 @@ export async function POST(request: Request) {
         return names[other.id]?.name ?? other.name;
       });
 
-    const paths = selectQuizFiles(
-      mapConcept.files,
-      mapConcept.top.map((t) => t.file),
-    );
+    // 구조 요약 — 진입점·개념 안 호출 흐름·다른 개념과 주고받는 곳. 재료 파일도 흐름 순서로 고른다
+    const structure = conceptStructure(analysis.map, mapIndex, (id) => {
+      const other = analysis.map.concepts.find((c) => c.id === id);
+      return names[id]?.name ?? other?.name ?? `#${id}`;
+    });
+    const paths = selectQuizFiles(mapConcept.files, structure.rankedFiles);
     const material = await fetchQuizMaterial(analysis.map.repo, analysis.commit, paths);
     if (material.length === 0) {
       throw new QuizError("GitHub에서 코드를 가져오지 못했습니다. 레포가 아직 public인지 확인해 주세요.", 502);
@@ -62,6 +65,7 @@ export async function POST(request: Request) {
       commit: analysis.commit,
       concept: { name: stored?.name ?? mapConcept.name, files: mapConcept.files, top: mapConcept.top },
       neighbors,
+      structure: renderStructure(structure),
       material,
     });
     if (questions.length === 0) {

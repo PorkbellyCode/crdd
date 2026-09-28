@@ -62,7 +62,8 @@ docker run -p 3000:3000 crdd-web
 | `src/db/schema.ts` · `repo.ts` | Drizzle 스키마와 저장·조회 레이어 |
 | `src/lib/github/source.ts` | 출제용 코드 조회 — raw.githubusercontent.com, 커밋 SHA 고정, 크기 상한 |
 | `src/lib/llm/*` | BYOK — 제공자 목록, 헤더 규약, 브라우저 보관(제공자별), Anthropic / OpenAI 호환 클라이언트 |
-| `src/lib/quiz/prompts.ts` | 출제·채점 프롬프트 (crdd-mcp의 QUIZ_INSTRUCTIONS를 승격) |
+| `src/lib/quiz/prompts.ts` | 출제·채점 프롬프트 — 문항은 흐름(flow)·설계 이유(why)·영향(impact) 한 개씩 |
+| `src/lib/quiz/structure.ts` | 출제용 구조 요약 — 그래프에서 진입점·개념 안 호출 흐름·다른 개념과의 경계, 재료 파일 순서 |
 | `src/lib/quiz/flow.ts` | 문항 단계 상태 머신 first → hint → explanation → unresolved |
 | `src/lib/quiz/view.ts` | 단계에 맞게 rubric·힌트·설명을 걸러 화면으로 내보냄 |
 | `src/db/quiz-repo.ts` · `score-repo.ts` | 퀴즈 세션 저장, 결과 → 점수 v2(누적+스무딩) 반영 |

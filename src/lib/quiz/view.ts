@@ -33,6 +33,7 @@ export function toQuizView(quiz: {
       const inExplanation = progress.stage === "explanation";
       return {
         level: question.level,
+        kind: question.kind,
         question: question.question,
         codeExcerpt: question.codeExcerpt,
         stage: progress.stage,

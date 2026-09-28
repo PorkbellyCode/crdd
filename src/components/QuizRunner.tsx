@@ -24,6 +24,12 @@ const OUTCOME_COLOR: Record<AnswerOutcome, string> = {
   unresolved: "var(--debt-crit)",
 };
 
+const KIND_LABEL = {
+  flow: "흐름을 설명할 수 있는가",
+  why: "설계 이유를 설명할 수 있는가",
+  impact: "바꾸면 어디가 영향을 받는지 아는가",
+} as const;
+
 const LEVEL_LABEL = {
   awareness: "역할을 아는가",
   understanding: "동작을 설명할 수 있는가",
@@ -119,7 +125,7 @@ export default function QuizRunner({ initial, returnTo }: { initial: QuizView; r
               <span>
                 문항 {i + 1}/{quiz.total}
               </span>
-              <span>{LEVEL_LABEL[question.level]}</span>
+              <span>{question.kind ? KIND_LABEL[question.kind] : LEVEL_LABEL[question.level]}</span>
             </p>
             <h2 className="mt-2 text-[15px] leading-relaxed font-semibold">{question.question}</h2>
             <CodeExcerpt excerpt={question.codeExcerpt} />

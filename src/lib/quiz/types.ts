@@ -2,9 +2,19 @@ import type { AnswerOutcome } from "@/lib/crdd/types";
 
 export type QuizLevel = "awareness" | "understanding" | "reasoning";
 
+/**
+ * 문항 유형 — 개념을 이해했다면 설명할 수 있어야 하는 것 세 가지.
+ *   flow   — 진입점부터 결과까지, 여러 파일에 걸친 흐름
+ *   why    — 이렇게 설계한 이유와 다른 선택지 대비 트레이드오프
+ *   impact — 무언가 바꾸거나 실패하면 어디에 무슨 영향이 가는가
+ * 이전 퀴즈(유형 도입 전)에는 없다.
+ */
+export type QuizKind = "flow" | "why" | "impact";
+
 /** 서버에만 있는 문항 원본 — rubric·힌트·설명 포함 */
 export interface QuizQuestion {
   level: QuizLevel;
+  kind?: QuizKind;
   question: string;
   codeExcerpt: { file: string; startLine: number; endLine: number; code: string };
   /** 정답에 반드시 포함돼야 하는 핵심 포인트. 채점 기준이 세션마다 흔들리지 않게 */
@@ -57,6 +67,7 @@ export interface QuizView {
   total: number;
   questions: {
     level: QuizLevel;
+    kind?: QuizKind;
     question: string;
     codeExcerpt: QuizQuestion["codeExcerpt"];
     stage: QuizStage;
