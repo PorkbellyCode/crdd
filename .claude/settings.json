@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(bun run typecheck)",
+      "Bash(bun test:*)",
+      "Bash(bun run build)",
+      "Bash(bun run db:generate)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)",
+      "Bash(ls:*)"
+    ],
+    "deny": [
+      "Bash(git stash:*)",
+      "Read(./.env*)",
+      "Read(./local.db*)"
+    ]
+  }
+}
