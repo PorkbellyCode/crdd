@@ -128,7 +128,7 @@ export async function generateQuestions(input: GenerateInput): Promise<Generated
     .filter((line) => line !== "")
     .join("\n");
 
-  const result = await llmClient(input.provider).callTool<{ questions: QuizQuestion[]; conceptName?: string }>({
+  const result = await llmClient(input.provider).callTool<{ questions?: unknown; conceptName?: string }>({
     apiKey: input.apiKey,
     model: input.model,
     system: GENERATE_SYSTEM,
@@ -157,16 +157,55 @@ export async function generateQuestions(input: GenerateInput): Promise<Generated
   });
 
   return {
-    questions: sanitizeQuestions(result.questions ?? [], input.material),
-    conceptName: normalizeConceptName(result.conceptName),
+    questions: sanitizeQuestions(result?.questions, input.material),
+    conceptName: normalizeConceptName(result?.conceptName),
   };
+}
+
+/** 문자열로 직렬화돼 온 값을 JSON.parse로 한 번만 복원한다. 실패하면 원래 값을 그대로 돌려준다 */
+function parseOnce(value: unknown): unknown {
+  if (typeof value !== "string") return value;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return value;
+  }
+}
+
+/**
+ * LLM이 tool input의 중첩 배열·객체를 JSON 문자열로 돌려주는 경우를 복원한다.
+ * questions, 각 문항의 codeExcerpt·rubric만 대상이며 복원 못 하면 빈 배열/걸러질 값으로 둔다.
+ */
+function normalizeRawQuestions(raw: unknown): QuizQuestion[] {
+  const list = parseOnce(raw);
+  if (!Array.isArray(list)) {
+    // 가설 확인용 관측 — 내용은 남기지 않고 형태만 기록한다
+    console.warn(
+      "questions가 배열이 아님",
+      typeof raw,
+      typeof raw === "string" ? `길이 ${raw.length}` : "",
+      list === raw ? "복원 안 함" : "복원했으나 배열 아님",
+    );
+    return [];
+  }
+  if (typeof raw === "string") console.warn("questions를 문자열에서 복원함", `길이 ${raw.length}`);
+  let restored = 0;
+  const questions = list
+    .filter((q): q is Record<string, unknown> => typeof q === "object" && q !== null && !Array.isArray(q))
+    .map((q) => {
+      if (typeof q.codeExcerpt === "string" || typeof q.rubric === "string") restored += 1;
+      return { ...q, codeExcerpt: parseOnce(q.codeExcerpt), rubric: parseOnce(q.rubric) } as unknown as QuizQuestion;
+    });
+  if (restored) console.warn("문항 필드를 문자열에서 복원 시도", `${restored}개 문항`);
+  return questions;
 }
 
 /**
  * LLM 출력 검증 — material에 없는 파일을 인용했거나 필수 값이 빈 문항은 버린다.
  * 발췌 코드는 LLM이 옮긴 code를 믿지 않고 file·줄 범위로 material 원문에서 다시 자른다.
  */
-export function sanitizeQuestions(questions: QuizQuestion[], material: SourceFile[]): QuizQuestion[] {
+export function sanitizeQuestions(raw: unknown, material: SourceFile[]): QuizQuestion[] {
+  const questions = normalizeRawQuestions(raw);
   const fileLines = new Map(material.map((file) => [file.path, file.content.split("\n")]));
   const lineCount = new Map([...fileLines].map(([path, lines]) => [path, lines.length]));
   return questions
@@ -181,6 +220,7 @@ export function sanitizeQuestions(questions: QuizQuestion[], material: SourceFil
         q.explanation.trim() &&
         Array.isArray(q.rubric) &&
         q.rubric.filter((r) => typeof r === "string" && r.trim()).length > 0 &&
+        typeof q.codeExcerpt === "object" &&
         q.codeExcerpt &&
         lineCount.has(q.codeExcerpt.file),
     )

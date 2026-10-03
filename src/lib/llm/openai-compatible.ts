@@ -8,7 +8,7 @@
  * 에러 메시지에 키나 응답 원문을 넣지 않는다.
  */
 import "server-only";
-import { compatErrorMessage, extractToolArguments } from "./compat";
+import { compatErrorMessage, extractToolArguments, readJsonBody } from "./compat";
 import { filterModels, PROVIDERS, type ProviderId, type RawModel } from "./providers";
 import { LlmError, type LlmClient, type ToolCall } from "./types";
 
@@ -97,7 +97,7 @@ export function openAiCompatible(provider: CompatProvider): LlmClient {
       }
       if (!response.ok) throw await toLlmError(response);
 
-      const args = extractToolArguments(await response.json(), tool.name);
+      const args = extractToolArguments(await readJsonBody(response), tool.name);
       if (args === null) {
         throw new LlmError("LLM이 예상한 형식으로 답하지 않았습니다. 다시 시도하거나 다른 모델을 골라 주세요.", 502);
       }

@@ -2,12 +2,27 @@
  * OpenAI 호환 응답 해석 — 순수 함수 (테스트 대상).
  */
 
+import { LlmError } from "./types";
+
+/** 응답 본문을 JSON으로 읽는다. 수신 중 연결 끊김(TypeError: terminated)·비JSON 본문은 502로 바꾼다 */
+export async function readJsonBody(response: Response): Promise<unknown> {
+  try {
+    return await response.json();
+  } catch (error) {
+    // 원인 구분용 — name만 남긴다 (message에 본문 조각이 섞일 수 있다)
+    console.warn("LLM 본문 읽기 실패", error instanceof Error ? error.name : "unknown");
+    throw new LlmError("LLM 응답을 끝까지 받지 못했습니다. 다시 시도해 주세요.", 502);
+  }
+}
+
 /** chat/completions 응답에서 강제 호출한 도구의 인자(JSON)를 꺼낸다 */
 export function extractToolArguments(body: unknown, toolName: string): unknown | null {
   const message = (body as { choices?: { message?: Record<string, unknown> }[] })?.choices?.[0]?.message;
   if (!message) return null;
 
-  const calls = message.tool_calls as { function?: { name?: string; arguments?: string } }[] | undefined;
+  const calls = Array.isArray(message.tool_calls)
+    ? (message.tool_calls as { function?: { name?: string; arguments?: string } }[])
+    : undefined;
   const call = calls?.find((c) => c.function?.name === toolName) ?? calls?.[0];
   const raw = call?.function?.arguments ?? (typeof message.content === "string" ? message.content : null);
   if (!raw) return null;

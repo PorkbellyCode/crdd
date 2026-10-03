@@ -8,6 +8,7 @@
  * 요청 본문을 절대 넣지 않는다 — 에러는 화면과 서버 로그로 흘러가기 때문이다.
  */
 import "server-only";
+import { readJsonBody } from "./compat";
 import { describeInvalidRequest } from "./describe";
 import { filterModels, type ModelInfo } from "./providers";
 import { LlmError, type LlmClient, type ToolCall } from "./types";
@@ -100,14 +101,14 @@ export async function callTool<TInput>({
   }
   if (!response.ok) throw await toLlmError(response);
 
-  const body = (await response.json()) as {
-    content: { type: string; name?: string; input?: unknown }[];
+  const body = (await readJsonBody(response)) as {
+    content?: { type: string; name?: string; input?: unknown }[];
     stop_reason?: string;
-  };
-  const call = body.content.find((block) => block.type === "tool_use" && block.name === tool.name);
+  } | null;
+  const call = (Array.isArray(body?.content) ? body.content : []).find((block) => block.type === "tool_use" && block.name === tool.name);
   if (!call?.input) {
     throw new LlmError(
-      body.stop_reason === "max_tokens"
+      body?.stop_reason === "max_tokens"
         ? "LLM 응답이 길이 한도에서 잘렸습니다. 다시 시도해 주세요."
         : "LLM이 예상한 형식으로 답하지 않았습니다. 다시 시도해 주세요.",
       502,

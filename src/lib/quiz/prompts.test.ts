@@ -27,4 +27,23 @@ describe("sanitizeQuestions", () => {
     const [q] = sanitizeQuestions([bad], material);
     expect(q!.codeExcerpt.code).toBe("x\ny");
   });
+  test("questions가 JSON 문자열이어도 복원한다", () => {
+    expect(sanitizeQuestions(JSON.stringify([base]), material)).toHaveLength(1);
+  });
+  test("rubric·codeExcerpt가 JSON 문자열이어도 복원한다", () => {
+    const str = { ...base, rubric: JSON.stringify(base.rubric), codeExcerpt: JSON.stringify(base.codeExcerpt) };
+    const [q] = sanitizeQuestions([str], material);
+    expect(q!.rubric).toEqual(["a", "b"]);
+    expect(q!.codeExcerpt.code).toBe("x\ny");
+  });
+  test("배열이 아닌 값·파싱 불가 문자열은 빈 배열", () => {
+    expect(sanitizeQuestions({ a: 1 }, material)).toEqual([]);
+    expect(sanitizeQuestions("not json{", material)).toEqual([]);
+    expect(sanitizeQuestions(undefined, material)).toEqual([]);
+    expect(sanitizeQuestions('{"a":1}', material)).toEqual([]);
+  });
+  test("파싱 불가 rubric·codeExcerpt, 객체가 아닌 원소는 문항만 거른다", () => {
+    const bad = [{ ...base, rubric: "깨진[" }, { ...base, codeExcerpt: "깨진{" }, null, "str", 3, base];
+    expect(sanitizeQuestions(bad, material)).toHaveLength(1);
+  });
 });

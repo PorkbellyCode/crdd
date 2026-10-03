@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { compatErrorMessage, extractToolArguments } from "./compat";
+import { compatErrorMessage, extractToolArguments, readJsonBody } from "./compat";
 import { defaultModel, filterModels } from "./providers";
 
 describe("extractToolArguments", () => {
@@ -61,5 +61,24 @@ describe("filterModels / defaultModel", () => {
     ]);
     expect(models.map((m) => m.id)).toEqual(["anthropic/claude-sonnet-4.5"]);
     expect(defaultModel("openrouter", models)).toBe("anthropic/claude-sonnet-4.5");
+  });
+});
+
+describe("readJsonBody", () => {
+  test("정상 JSON", async () => {
+    expect(await readJsonBody(new Response('{"a":1}'))).toEqual({ a: 1 });
+  });
+  test("비JSON 본문은 LlmError 502", async () => {
+    await expect(readJsonBody(new Response("<html>"))).rejects.toMatchObject({ status: 502 });
+  });
+  test("수신 중 끊김(TypeError)도 LlmError 502", async () => {
+    const stream = new ReadableStream({ pull: (c) => c.error(new TypeError("terminated")) });
+    await expect(readJsonBody(new Response(stream))).rejects.toMatchObject({ status: 502 });
+  });
+});
+
+describe("extractToolArguments 방어", () => {
+  test("tool_calls가 배열이 아니어도 던지지 않는다", () => {
+    expect(extractToolArguments({ choices: [{ message: { tool_calls: "x" } }] }, "s")).toBeNull();
   });
 });

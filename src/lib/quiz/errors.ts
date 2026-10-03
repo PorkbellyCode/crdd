@@ -29,6 +29,14 @@ export function errorResponse(error: unknown, fallback: string) {
   if (error instanceof LlmError) {
     return NextResponse.json({ error: error.message }, { status: error.status });
   }
-  console.error(fallback, error instanceof Error ? error.name : "unknown");
+  // 원인 추적용: 이름·message·스택 첫 프레임만 남긴다 (LLM 응답 원문이나 키가 섞이지 않게 cause 등은 제외)
+  if (error instanceof Error) {
+    const frame = error.stack?.split("\n").find((line) => line.trim().startsWith("at "))?.trim();
+    // SyntaxError는 message에 응답 본문 조각이 들어갈 수 있어 뺀다. 그 외는 첫 줄만 남긴다 (drizzle은 둘째 줄부터 params가 붙는다)
+    const message = error instanceof SyntaxError ? "" : (error.message.split("\n")[0] ?? "").slice(0, 200);
+    console.error(fallback, error.name, message, frame ?? "");
+  } else {
+    console.error(fallback, "unknown");
+  }
   return NextResponse.json({ error: fallback }, { status: 500 });
 }
