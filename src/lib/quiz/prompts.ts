@@ -23,8 +23,8 @@ const GENERATE_SYSTEM = [
   "'이해한다'는 코드를 외운다는 뜻이 아닙니다. 이 개념이 프로젝트에서 무슨 일을 맡고, 어디서 시작해 어떤 순서로 흘러가며, 왜 이렇게 만들었고, 바꾸면 어디가 흔들리는지 설명할 수 있다는 뜻입니다. 코드를 고치거나 리뷰하거나 장애를 추적할 때 실제로 필요한 이해를 물으세요.",
   "",
   "문항 구성 — 정확히 3문항, 순서대로 하나씩:",
-  "1. kind=flow (level=understanding): 진입점에서 시작해 이 개념이 결과를 만들기까지의 흐름. structure의 진입점과 호출 흐름을 근거로, 여러 파일을 거치는 과정을 설명하게 하세요. 함수 하나의 내부 동작만 묻지 마세요.",
-  "2. kind=why (level=reasoning): 이 개념의 설계 선택 하나를 골라 왜 그렇게 했는지, 다른 방식과 비교해 무엇을 얻고 잃는지. 코드에서 확인되는 제약(중복 방지, 실행 환경, 타입·스키마 공유, 에러 처리 등)을 근거로 삼으세요.",
+  "1. kind=flow (level=understanding): 진입점에서 시작해 이 개념이 결과를 만들기까지의 흐름. structure의 진입점과 호출 흐름을 근거로, 여러 파일을 거치는 과정을 설명하게 하세요. 함수 하나의 내부 동작만 묻지 마세요. material에 없는 파일의 내부 동작은 묻지 마세요.",
+  "2. kind=why (level=reasoning): 이 개념의 설계 선택 하나를 골라 왜 그렇게 했는지, 다른 방식과 비교해 무엇을 얻고 잃는지. 코드에서 확인되는 제약(중복 방지, 실행 환경, 타입·스키마 공유, 에러 처리, 성능/비용 트레이드오프, 보안·권한 경계, 동시성·데이터 정합성, 사용자 경험(UX) 트레이드오프 등)을 근거로 삼으세요.",
   "3. kind=impact (level=reasoning): 구체적인 변경이나 실패 상황(예: 외부 호출 하나가 실패, 반환 형태 변경, 한 단계를 제거)을 제시하고 무엇이 어떻게 영향을 받는지. structure의 '다른 개념이 쓰는 곳'이 있으면 개념 경계를 넘는 영향을 우선 고려하세요.",
   "",
   "금지:",
@@ -114,6 +114,12 @@ export async function generateQuestions(input: GenerateInput): Promise<Generated
     "structure (정적 분석 요약 — 참고용, 근거는 material로 확인):",
     input.structure,
     "",
+    ...(input.material.length < input.concept.files.length
+      ? [
+          `material에는 이 concept의 파일 중 일부(${input.material.length}/${input.concept.files.length}개, 대표 심볼 기준 상위 파일)만 포함돼 있습니다. flow 문항은 material에 실제로 포함된 파일들 사이의 흐름만 물으세요. material에 없는 파일로 이어지는 단계는 "~로 넘어간다"처럼 존재만 언급하고, 그 안의 세부 동작은 묻지 마세요.`,
+          "",
+        ]
+      : []),
     "material:",
     renderMaterial(input.material),
     "",
@@ -156,15 +162,23 @@ export async function generateQuestions(input: GenerateInput): Promise<Generated
   };
 }
 
-/** LLM 출력 검증 — material에 없는 파일을 인용했거나 필수 값이 빈 문항은 버린다 */
+/**
+ * LLM 출력 검증 — material에 없는 파일을 인용했거나 필수 값이 빈 문항은 버린다.
+ * 발췌 코드는 LLM이 옮긴 code를 믿지 않고 file·줄 범위로 material 원문에서 다시 자른다.
+ */
 export function sanitizeQuestions(questions: QuizQuestion[], material: SourceFile[]): QuizQuestion[] {
-  const lineCount = new Map(material.map((file) => [file.path, file.content.split("\n").length]));
+  const fileLines = new Map(material.map((file) => [file.path, file.content.split("\n")]));
+  const lineCount = new Map([...fileLines].map(([path, lines]) => [path, lines.length]));
   return questions
     .filter(
       (q) =>
         q &&
         typeof q.question === "string" &&
         q.question.trim() &&
+        typeof q.hint === "string" &&
+        q.hint.trim() &&
+        typeof q.explanation === "string" &&
+        q.explanation.trim() &&
         Array.isArray(q.rubric) &&
         q.rubric.filter((r) => typeof r === "string" && r.trim()).length > 0 &&
         q.codeExcerpt &&
@@ -178,7 +192,7 @@ export function sanitizeQuestions(questions: QuizQuestion[], material: SourceFil
         level: LEVELS.includes(q.level) ? q.level : "understanding",
         ...(q.kind && KINDS.includes(q.kind) ? { kind: q.kind } : {}),
         question: q.question.trim(),
-        codeExcerpt: tidyExcerpt({ file: q.codeExcerpt.file, startLine: start, endLine: end, code: String(q.codeExcerpt.code ?? "") }, lines),
+        codeExcerpt: tidyExcerpt({ file: q.codeExcerpt.file, startLine: start, endLine: end, code: fileLines.get(q.codeExcerpt.file)!.slice(start - 1, end).join("\n") }, lines),
         rubric: q.rubric.filter((r) => typeof r === "string" && r.trim()).map((r) => r.trim()),
         hint: String(q.hint ?? "").trim(),
         explanation: String(q.explanation ?? "").trim(),
