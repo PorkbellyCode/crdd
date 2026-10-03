@@ -8,7 +8,7 @@ import type { QuizView } from "@/lib/quiz/types";
 
 function QuizPageInner({ id }: { id: string }) {
   const from = useSearchParams().get("from");
-  const returnTo = from && from.startsWith("/") ? from : null;
+  const returnTo = from && /^\/a\/[\w-]+$/.test(from) ? from : null;
   const [quiz, setQuiz] = useState<QuizView | null>(null);
   const [error, setError] = useState<string | null>(null);
 

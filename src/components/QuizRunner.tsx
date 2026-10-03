@@ -36,6 +36,25 @@ const LEVEL_LABEL = {
   reasoning: "설계 이유를 설명할 수 있는가",
 } as const;
 
+const SUBMIT_TIMEOUT_MS = 65_000; // 서버 maxDuration(60초)보다 조금 길게
+
+const NO_KEY = (
+  <>
+    API 키가 없습니다.{" "}
+    <Link href="/settings" className="underline underline-offset-2">
+      설정에서 키를 넣어 주세요
+    </Link>
+    .
+  </>
+);
+
+const GIVE_UP_LABEL = { first: "힌트 보기", hint: "설명 보기", explanation: "포기하고 넘어가기" } as const;
+const SCORE_NOW = {
+  first: "지금 맞히면 1.0점",
+  hint: "지금 맞히면 0.6점",
+  explanation: "지금 맞히면 0.3점",
+} as const;
+
 const STAGE_PROMPT = {
   first: "답변",
   hint: "힌트를 보고 다시 답해 보세요",
@@ -82,33 +101,71 @@ export default function QuizRunner({ initial, returnTo }: { initial: QuizView; r
   const [quiz, setQuiz] = useState(initial);
   const [answer, setAnswer] = useState("");
   const [pending, setPending] = useState<"answer" | "giveup" | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<React.ReactNode>(null);
 
   const index = quiz.current;
   const active = index >= 0 ? quiz.questions[index] : null;
 
   async function submit(giveUp: boolean) {
-    if (!settings && !giveUp) {
-      setError("API 키가 없습니다. 설정에서 키를 넣어 주세요.");
+    if (!active) return;
+    // 포기는 서버가 LLM을 부르지 않으므로 키와 무관하게 허용한다. 키 검사는 일반 답변만
+    if (!giveUp) {
+      if (settings === undefined) return; // 키 확인 중 — 버튼도 잠겨 있다
+      if (settings === null) {
+        setError(NO_KEY);
+        return;
+      }
+    }
+    if (giveUp && active.stage === "explanation" && !window.confirm("이 문항을 포기하면 0점으로 끝납니다. 계속할까요?")) {
       return;
     }
     setPending(giveUp ? "giveup" : "answer");
     setError(null);
+    const sentAttempts = active.attempts.length;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), SUBMIT_TIMEOUT_MS);
     try {
       const response = await fetch(`/api/quiz/${quiz.id}/answer`, {
         method: "POST",
         headers: { "content-type": "application/json", ...(settings ? llmHeaders(settings) : {}) },
-        body: JSON.stringify({ index, answer: giveUp ? "" : answer, giveUp }),
+        body: JSON.stringify({
+          index,
+          attempts: sentAttempts,
+          stage: active.stage,
+          answer: giveUp ? "" : answer,
+          giveUp,
+        }),
+        signal: controller.signal,
       });
       const data = await response.json();
       if (!response.ok) {
+        // 서버가 최신 상태를 알려 주면 그 자리에서 맞춘다. 사용자가 쓴 답은 지우지 않는다
+        if (data.quiz) setQuiz(data.quiz);
         setError(data.error ?? "채점하지 못했습니다");
       } else {
         setQuiz(data);
         setAnswer("");
       }
     } catch {
-      setError("서버에 연결하지 못했습니다");
+      // 응답을 못 받았어도 서버는 처리를 끝냈을 수 있다 — 실제 상태로 맞춘다
+      try {
+        const response = await fetch(`/api/quiz/${quiz.id}`, { cache: "no-store" });
+        if (!response.ok) throw new Error();
+        const latest: QuizView = await response.json();
+        setQuiz(latest);
+        const advanced =
+          latest.current !== index || (latest.questions[index]?.attempts.length ?? 0) !== sentAttempts;
+        if (advanced) setAnswer("");
+        setError(
+          advanced
+            ? "응답을 받지 못했지만 제출은 처리됐습니다. 최신 상태로 맞췄습니다."
+            : "응답을 받지 못했습니다. 답은 그대로 두었으니 다시 제출해 주세요.",
+        );
+      } catch {
+        setError("서버에 연결하지 못했습니다");
+      }
+    } finally {
+      clearTimeout(timer);
     }
     setPending(null);
   }
@@ -211,14 +268,14 @@ export default function QuizRunner({ initial, returnTo }: { initial: QuizView; r
                   maxLength={4000}
                 />
                 <div className="mt-2 flex flex-wrap items-center gap-2">
-                  <Button type="submit" disabled={pending !== null || !answer.trim()}>
-                    {pending === "answer" ? "채점 중…" : "제출"}
+                  <Button type="submit" disabled={pending !== null || settings === undefined || !answer.trim()}>
+                    {pending === "answer" ? "채점 중…" : settings === undefined ? "확인 중…" : "제출"}
                   </Button>
                   <Button type="button" variant="secondary" disabled={pending !== null} onClick={() => void submit(true)}>
-                    {pending === "giveup" ? "넘어가는 중…" : "모르겠어요"}
+                    {pending === "giveup" ? "처리 중…" : GIVE_UP_LABEL[question.stage]}
                   </Button>
                   <span className="ml-auto text-[11px] text-dim">
-                    배점: 첫 시도 1.0, 힌트 후 0.6, 설명 후 0.3
+                    {SCORE_NOW[question.stage]}
                   </span>
                 </div>
                 {error ? <p className="mt-2 text-xs text-destructive">{error}</p> : null}

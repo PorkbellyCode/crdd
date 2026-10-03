@@ -50,25 +50,45 @@ export async function getQuiz(id: string) {
 
 export type StoredQuiz = NonNullable<Awaited<ReturnType<typeof getQuiz>>>;
 
-/** 진행 저장 — 이미 끝난 퀴즈는 건드리지 않는다 */
-export async function saveQuizProgress(id: string, progress: QuestionProgress[]): Promise<boolean> {
+/**
+ * 진행 저장 — 이미 끝난 퀴즈는 건드리지 않는다.
+ * expected를 주면 "읽은 뒤 아무도 안 바꿨을 때만" 쓴다(compare-and-swap).
+ * 두 요청이 동시에 떠 있을 때 뒤 요청이 앞 요청의 시도를 덮어쓰는 걸 막는다.
+ */
+export async function saveQuizProgress(
+  id: string,
+  progress: QuestionProgress[],
+  expected?: QuestionProgress[],
+): Promise<boolean> {
   const updated = await db
     .update(quizzes)
     .set({ progressJson: JSON.stringify(progress) })
-    .where(and(eq(quizzes.id, id), eq(quizzes.status, "active")))
+    .where(and(eq(quizzes.id, id), eq(quizzes.status, "active"), ...expectedProgress(expected)))
     .returning({ id: quizzes.id });
   return updated.length > 0;
+}
+
+/**
+ * CAS 조건. DB에 든 progressJson은 JSON.stringify로 쓴 뒤 JSON.parse로 읽은 값이라,
+ * 다시 stringify하면 저장된 문자열과 같다 (키 순서가 보존된다).
+ */
+function expectedProgress(expected: QuestionProgress[] | undefined) {
+  return expected === undefined ? [] : [eq(quizzes.progressJson, JSON.stringify(expected))];
 }
 
 /**
  * 마지막 문항이 끝나면 퀴즈를 닫는다. 요청이 겹쳐도 한 번만 닫히도록
  * status=active일 때만 바꾸고, 실제로 닫았는지를 돌려준다.
  */
-export async function closeQuiz(id: string, progress: QuestionProgress[]): Promise<boolean> {
+export async function closeQuiz(
+  id: string,
+  progress: QuestionProgress[],
+  expected?: QuestionProgress[],
+): Promise<boolean> {
   const updated = await db
     .update(quizzes)
     .set({ status: "done", progressJson: JSON.stringify(progress), finishedAt: nowSec() })
-    .where(and(eq(quizzes.id, id), eq(quizzes.status, "active")))
+    .where(and(eq(quizzes.id, id), eq(quizzes.status, "active"), ...expectedProgress(expected)))
     .returning({ id: quizzes.id });
   return updated.length > 0;
 }
